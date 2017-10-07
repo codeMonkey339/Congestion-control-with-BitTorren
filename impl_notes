@@ -77,4 +77,10 @@ print "GOT <get-chunk-file>" on a line by itself.
 * Each peer can only have 1 download from a particular peer
   simultaneously, but can have paralle downloads from other peers
 
+
+Implementation
+* 100% reliable protocol for file transfer(DATA packets)
+* No-data packets (WHOHAS, IHAVE, GET packets) does not have to be
+transmitted reliably or with flow-control
+
 1. use fixed-size chunk of 512 Kbytes
