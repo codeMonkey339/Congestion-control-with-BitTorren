@@ -1,0 +1,80 @@
+BitTorrent
+* uses a central tracker that tracks which peers have which chunks of
+a file
+
+* a client begins a download by first obtaining a ".torrent" file,
+which lists the information about each chunk of a file
+
+* a chunk is identified by its cryptographic hash of its content
+
+* after a client has downloaded a chunk, it must compute the
+cryptographic hash to determine whether it obtained the right chunk or
+not
+
+* to download a particular chunk, the receiving peer obtains from the
+  tracker a list of peers that contain the chunk, then directly
+  contacts one of those peers to begin the download. BitTorrent uses a
+  "rarest-chunk-first" heuristic where it tries to fetch the rarest
+  chunk first.
+
+* The peer can download/upload 4 different chunks in parallel
+
+Specific to This project
+* Instead of implementing a tracker server, your peers will flood the
+network to find out which peers have which chunks of a file. Each peer
+will know the identifies of every other peer in the network. No need
+to implement routing.
+
+* Simplify setup & testing with "master data file"
+
+* No need to implement BitTorrent's incentive mechanism to encourage
+  good uploaders and discourage bad ones
+
+* skip chunks on own disk
+
+* MUST use UDP for all the communication for control and data transfer
+
+* implementation should be SINGLE THREADED!
+
+Files
+
+* get-chunk-file:a file containing the list of chunk ids and the
+  hashes a peer wants to download. This filename is provided by the
+  user when requesting a new download
+
+
+Running code
+* The peer program listens on standard input for commands from the
+user. The only command is "GET <get-chunk-file> <output filename>"
+This instruction should cause the program to open the specified chunks
+file and attempt to download all of the chunks listed in it
+
+* When the program finishes downloading the specified file, it should
+print "GOT <get-chunk-file>" on a line by itself.
+
+* Don't have to handle multiple concurrent file requests from the
+  user.
+
+* To find hosts to download from, the requesting peer sends a "WHOHAS
+  <list>" request to all other peers, where <list> is the list of
+  chunk hashes it wants to download. the list specifies the SHA-1
+  hahses of the chunks it wants to retrieve.
+
+* maximum UDP packet size: 1500 bytes
+
+* chunk hashes have a fixed length of 20 bytes.
+
+* GET request sent by your peer can be iteratively or parallelly
+
+* your peer will look at all IHAVE replies and contact one peer
+  directly to download the file chunk
+
+* DATA Packets are subject o congestion control
+
+* The peer may not be able to serve the GET request it is already
+  serving maximum # of requests
+
+* Each peer can only have 1 download from a particular peer
+  simultaneously, but can have paralle downloads from other peers
+
+1. use fixed-size chunk of 512 Kbytes
