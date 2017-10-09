@@ -39,16 +39,22 @@ void process_user_input(int fd, struct user_iobuf *userbuf,
   nread = read(fd, userbuf->buf + userbuf->cur, 
 	       (USERBUF_SIZE - userbuf->cur));
 
+  /*
+    ideal to be in a while loop to read required bytes
+  */
   if (nread > 0) {
     userbuf->cur += nread;
   }
 
- while ((ret = strchr(userbuf->buf, '\n')) != NULL) {
-  *ret = '\0';
-  handle_line(userbuf->buf, cbdata);
-  /* Shift the remaining contents of the buffer forward */
-  memmove(userbuf->buf, ret + 1, USERBUF_SIZE - (ret - userbuf->buf));
-  userbuf->cur -= (ret - userbuf->buf + 1);
- }
+  /*
+    handle bytes in the current request
+   */
+  while ((ret = strchr(userbuf->buf, '\n')) != NULL) {
+    *ret = '\0';
+    handle_line(userbuf->buf, cbdata); // function pointer
+    /* Shift the remaining contents of the buffer forward */
+    memmove(userbuf->buf, ret + 1, USERBUF_SIZE - (ret - userbuf->buf));
+    userbuf->cur -= (ret - userbuf->buf + 1);
+  }
 
 }

@@ -49,8 +49,9 @@ int main(int argc, char **argv) {
 }
 
 
+//todo: need to respond to requests from central server and peers
 void process_inbound_udp(int sock) {
-  #define BUFLEN 1500
+#define BUFLEN 1500
   struct sockaddr_in from;
   socklen_t fromlen;
   char buf[BUFLEN];
@@ -65,10 +66,34 @@ void process_inbound_udp(int sock) {
 	 buf);
 }
 
+
+/*
+  need to parse user's command and send requests to server and
+  peers
+
+  reliable transfer: only data packets will be transmitted reliably
+
+*/
+
 void process_get(char *chunkfile, char *outputfile) {
+  /*
+    todos:
+    1. flood the network to send whohas message first
+    steps
+    * get files path from commandline params
+    * get ips of each peer and send them the whohas message
+    * collect replies from peers? how to store them? a dynamic list?
+    * pick the proper one and initiate data transfer
+
+    2. build a reliable file transfer protocol ontop of UDP
+   */
+
+
+  //todo: how to access the local file?
   printf("PROCESS GET SKELETON CODE CALLED.  Fill me in!  (%s, %s)\n", 
-	chunkfile, outputfile);
+         chunkfile, outputfile);
 }
+
 
 void handle_user_input(char *line, void *cbdata) {
   char chunkf[128], outf[128];
@@ -76,6 +101,9 @@ void handle_user_input(char *line, void *cbdata) {
   bzero(chunkf, sizeof(chunkf));
   bzero(outf, sizeof(outf));
 
+  /*
+    format specifier: "%120s" will read no more than 120 chars !
+   */
   if (sscanf(line, "GET %120s %120s", chunkf, outf)) {
     if (strlen(outf) > 0) {
       process_get(chunkf, outf);

@@ -126,4 +126,4 @@ tested.
    $(CC) foo_test.o -o $@
 
    or you can write"test_foo.c" files that use the function in the foo
-   file. This will enforce modularization
+   file. This will enforce modularization.
