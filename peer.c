@@ -95,7 +95,8 @@ void process_get(char *chunkfile, char *outputfile) {
 }
 
 
-void handle_user_input(char *line, void *cbdata) {
+//todo: read file from config, and then send the requests
+void handle_user_input(char *line, void *cbdata, bt_config_t *config) {
   char chunkf[128], outf[128];
 
   bzero(chunkf, sizeof(chunkf));
@@ -154,7 +155,7 @@ void peer_run(bt_config_t *config) {
       
       if (FD_ISSET(STDIN_FILENO, &readfds)) {
 	process_user_input(STDIN_FILENO, userbuf, handle_user_input,
-			   "Currently unused");
+			   "Currently unused", config);
       }
     }
   }
