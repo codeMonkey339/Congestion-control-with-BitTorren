@@ -127,3 +127,9 @@ tested.
 
    or you can write"test_foo.c" files that use the function in the foo
    file. This will enforce modularization
+
+
+3. implementing the handler function for a peer
+	* message builder should be provided as a utility
+	* flooding network should be provided as a function in network
+	* data transfer between peers should be reliable? one layer on top of udp?

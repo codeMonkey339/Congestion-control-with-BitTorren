@@ -26,12 +26,22 @@ typedef struct bt_peer_s {
 } bt_peer_t;
 
 struct bt_config_s {
+  /* chunk_file points to the masterchunks file*/
   char  chunk_file[BT_FILENAME_LEN];
+  /* current chunk within the current peer */
   char  has_chunk_file[BT_FILENAME_LEN];
+  /* output file name */
   char  output_file[BT_FILENAME_LEN];
+  /* a list of all running peers */
   char  peer_list_file[BT_FILENAME_LEN];
+  /* max # of connections to peers */
   int   max_conn;
+  /* id identifies the current peer
+     this should be used by the peer to get its hostname and port from
+     peer-list-file 
+   */
   short identity;
+  /* port of the current peer, read from nodes.map?*/
   unsigned short myport;
 
   int argc; 
