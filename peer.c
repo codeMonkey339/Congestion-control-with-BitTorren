@@ -23,6 +23,9 @@
 #include "input_buffer.h"
 
 #define IP_STR_LEN 15
+#define DEFAULT_CHUNK_SIZE 10
+#define CHUNK_HASH_SIZE 45
+
 
 typedef struct peer_info{
   int id;
@@ -63,6 +66,9 @@ int main(int argc, char **argv) {
 }
 
 void process_whohas(int sock, char *buf, struct sock_addr_in from, socklen_t fromlen, int BUFLEN){
+  // 1. open the has_chunks_file of self
+  // 2. parse the query & get hash_num
+  // 3. loop through chunks & check whether owns requested chunk
   return;
 }
 
@@ -79,6 +85,8 @@ void process_ihave(int sock, char *buf, struct sock_addr_in from, socklen_t from
   what kind of reliable protocol to develop?
  */
 void process_peer_get(int sock, char *buf, struct sock_addr_in from, socklen_t fromlen, int BUFLEN){
+  // 1. open the master hash_chunk_file
+  // 2. how to retrieve the chunk based on chunk hash & id???
   return;
 }
 
@@ -120,8 +128,22 @@ void process_inbound_udp(int sock) {
  * char *has_chunk_file: a filename pointing to a file containing
  * chunks to owned by current peer
  */
-char *filter_chunkfile(char *chunkfile, char *has_chunk_file){
-
+char *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num){
+  FILE *f1, *f2;
+  char *filtered_chunks = (char*)malloc(DEFAULT_CHUNK_SIZE * CHUNK_HASH_SIZE), buf[CHUNK_HASH_SIZE];
+  
+  if ((f1 = fopen(chunkfile, "r")) == NULL){
+    fprintf(stderr, "Error opening chunkfile %s \n", chunkfile);
+    exit(1);
+  }
+  if ((f2 = fopen(has_chunk_file, "r")) == NULL){
+    fprintf(stderr, "Error opening has_chunk_file %s\n", has_chunk_file);
+    exit(1);
+  }
+  // 1. read all lines of f1 into a list
+  // 2. read all lines of f2 into a list
+  // 3. copy those hashes in f1 but not in f2 into filtered_chunks
+  // 4. assign value to chunks_num
   return NULL;
 }
 
@@ -131,10 +153,18 @@ char *filter_chunkfile(char *chunkfile, char *has_chunk_file){
  * all peers
  */
 peers_t load_peers(char *peer_list_file){
+  // 1.open the peer_list_file
+  // 2. read each line into a peer_info_t struct, & all peers into a
+  // peers_t struct
   return NULL;
 }
 
-char *build_query(char *chunkfile){
+/*
+ * query example: WHOHAS 2 000...015 0000..00441
+ */
+char *build_query(char *chunkfile, int chunks_num){
+  //1. parse chunkfile with " "
+  // 2. fill in query type & chunks_num, fill in copy each hash into a buf
   return NULL;
 }
 
@@ -143,7 +173,8 @@ char *build_query(char *chunkfile){
  * char *query: the query info to flood to peers
  */
 void flood_peers_query(peers_t peers, char *query){
-  
+  // 1. loop through each peer in peers
+  // 2. send query to each peer with reliability
 }
 /*
   need to parse user's command and send requests to server and
@@ -172,11 +203,11 @@ void process_get(char *chunkfile, char *outputfile, bt_config_t *config) {
     * write separate "test_foo.c" files that use the functions in the
     foo file. The advantage is that it also enforces better modularization
    */
+  int chunks_num;
 
-
-  chunkfile = filter_chunkfile(chunkfile, config->has_chunk_file);
+  chunkfile = filter_chunkfile(chunkfile, config->has_chunk_file, &chunks_num);
   peers_t peers = load_peers(config->peer_list_file);
-  char *query = build_query(chunkfile);
+  char *query = build_query(chunkfile, chunks_num);
   flood_peers_query(peers, query);
   printf("PROCESS GET SKELETON CODE CALLED.  Fill me in!  (%s, %s)\n", 
          chunkfile, outputfile);
