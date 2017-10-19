@@ -68,31 +68,87 @@ int main(int argc, char **argv) {
   return 0;
 }
 
+
+/*
+ * FILE *f: file pointer to file which will be read from
+ * vector *v: a vector pointer which will hold read chunk hashes
+ */
+void read_chunk(FILE *f, vector *v){
+  char *token, *line = NULL;
+  size_t line_len;
+
+  while(getline(&line, &line_len, f) != -1){
+    token = strtok(line, " ");
+    if (isdigit(token)){
+      token = strtok(NULL, " ");
+      vec_add(v, token);
+    }else{
+      /* skip the current line */
+      fprintf(stderr, "Wrong format of chunk file");
+    }
+    free(line); // memory is dynamically allocated in getline
+  }
+  return;
+}
+
+/*
+ * the REPLY message is in the format: "IHAVE 2 000...015 0000...00441"
+ */
+char *build_ihave_reply(char *reply, int num){
+  char *res = (char*)malloc(sizeof(reply) + sizeof(num) + 5 + 2);
+  strcat(res, "IHAVE ");
+  sprintf(res + strlen(res), "%d ", num);
+  strcat(res, reply);
+  return res;
+}
+
 /*
  * handle whohas message from peers
  * check whether the chunks exist in itw own has_chunk_file, if so
  * then replies the IHAVE message, otherwise there is no reply
+ *
+ * the REPLY message is in the format: "IHAVE 2 000...015 0000...00441"
  */
 void process_whohas(int sock, char *buf, struct sock_addr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config){
-  // 1. open the has_chunks_file of self
-  // 2. parse the query & get hash_num
-  // 3. loop through chunks & check whether owns requested chunk
   FILE *f;
-  char *line = NULL, *token;
-  size_t line_len;
+  char *token, *reply = (char*)malloc(BUFLEN);
+  vector v;
+  int chunks_num, reply_len = 0, hash_len = 0, buf_size = BUFLEN, has_num = 0;
   if ((f = fopen(config->has_chunk_file, "r")) == NULL){
     fprintf(stderr, "Error opening the has_chunk_file %s\n", config->has_chunk_file);
     exit(1);
   }
-
-  while(getline(&line, &line_len, f) != -1){
-    token = strtok(line, " ");
-    if (isdigit(*token)){
-      token = strtok(NULL, " ");
-    }else{
-      // comment line, do nothing
+  init_vector(&v, DEFAULT_CHUNK_SIZE);
+  read_chunk(f, &v);
+  read_from_sock(sock, buf, BUFLEN);
+  token = strtok(buf, " ");
+  token = strtok(NULL, " ");
+  chunks_num = *token;
+  while(chunks_num-- > 0){
+    token = strtok(NULL, " "); /* get a new chunk hash */
+    for (int i = 0; i < v.len; i++){
+      if (strstr(token, vec_get(&v, i)) != NULL){
+        /* owns the chunk in query */
+        char *next_space = strchr(token, ' ');
+        if (next_space == NULL){ /* no more hash*/
+          hash_len = strlen(token);
+        }else{
+          hash_len = next_space - token;
+        }
+        if ((reply_len + hash_len) >= buf_size){
+          buf = (char*)realloc(reply, 2 * buf_size);
+        }
+        strcat(reply, vec_get(&v, i));
+        strcat(reply, " ");
+        has_num++;
+        break;
+      }
     }
   }
+  /* todo: the reply_builder could be made more general */
+  char *reply_msg = build_ihave_reply(reply, has_num);
+  //send reply to requester
+  free(reply);
   return;
 }
 
@@ -151,27 +207,7 @@ void process_inbound_udp(int sock, bt_config_t *config) {
 }
 
 
-/*
- * FILE *f: file pointer to file which will be read from
- * vector *v: a vector pointer which will hold read chunk hashes
- */
-void read_chunk(FILE *f, vector *v){
-  char *token, *line = NULL;
-  size_t line_len;
 
-  while(getline(&line, &line_len, f) != -1){
-    token = strtok(line, " ");
-    if (isdigit(token)){
-      token = strtok(NULL, " ");
-      vec_add(v, token);
-    }else{
-      /* skip the current line */
-      fprintf(stderr, "Wrong format of chunk file");
-    }
-    free(line); // memory is dynamically allocated in getline
-  }
-  return;
-}
 /*
  * char *chunkfile: a filename pointing to a file containing chunks to
  * be retrieved

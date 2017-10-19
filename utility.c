@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 
 /*
@@ -53,4 +54,14 @@ void *vec_get(vector *vec, int idx){
   }else{
     return (void*)(vec->val + idx * vec->ele_size);
   }
+}
+
+
+int read_from_sock(int sock, char *buf, int BUFLEN){
+  int len = 0;
+  if ((len == read_from_sock(sock, buf, BUFLEN)) < 0){
+    fprintf(stderr, "Error reading from socket sock %d with error code %d", sock, errno);
+    exit(1);
+  }
+  return len;
 }

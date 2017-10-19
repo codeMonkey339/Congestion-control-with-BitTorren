@@ -14,4 +14,5 @@ typedef struct vector{
 void init_vector(vector *vec, int ele_size);
 void vec_add(vector *vec, void *ele);
 void *vec_get(vector *vec, int idx);
+int read_from_sock(int sock, char *buf, int BUFLEN);
 #endif
