@@ -37,7 +37,7 @@ typedef struct peer_info{
 }peer_info_t;
 
 typedef struct peers{
-  peer_info_t *peer;
+  vector peer;
   int num;
 }peers_t;
 
@@ -68,10 +68,31 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-void process_whohas(int sock, char *buf, struct sock_addr_in from, socklen_t fromlen, int BUFLEN){
+/*
+ * handle whohas message from peers
+ * check whether the chunks exist in itw own has_chunk_file, if so
+ * then replies the IHAVE message, otherwise there is no reply
+ */
+void process_whohas(int sock, char *buf, struct sock_addr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config){
   // 1. open the has_chunks_file of self
   // 2. parse the query & get hash_num
   // 3. loop through chunks & check whether owns requested chunk
+  FILE *f;
+  char *line = NULL, *token;
+  size_t line_len;
+  if ((f = fopen(config->has_chunk_file, "r")) == NULL){
+    fprintf(stderr, "Error opening the has_chunk_file %s\n", config->has_chunk_file);
+    exit(1);
+  }
+
+  while(getline(&line, &line_len, f) != -1){
+    token = strtok(line, " ");
+    if (isdigit(*token)){
+      token = strtok(NULL, " ");
+    }else{
+      // comment line, do nothing
+    }
+  }
   return;
 }
 
@@ -79,7 +100,7 @@ void process_whohas(int sock, char *buf, struct sock_addr_in from, socklen_t fro
   process IHAVE message from a peer.
   need to develop a reliable transfer protocol ontop of UDP
  */
-void process_ihave(int sock, char *buf, struct sock_addr_in from, socklen_t fromlen, int BUFLEN){
+void process_ihave(int sock, char *buf, struct sock_addr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config){
   return;
 }
 
@@ -87,7 +108,7 @@ void process_ihave(int sock, char *buf, struct sock_addr_in from, socklen_t from
   counterpart of the process_ihave function
   what kind of reliable protocol to develop?
  */
-void process_peer_get(int sock, char *buf, struct sock_addr_in from, socklen_t fromlen, int BUFLEN){
+void process_peer_get(int sock, char *buf, struct sock_addr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config){
   // 1. open the master hash_chunk_file
   // 2. how to retrieve the chunk based on chunk hash & id???
   return;
@@ -96,7 +117,7 @@ void process_peer_get(int sock, char *buf, struct sock_addr_in from, socklen_t f
 /*
  * int sock: socket # that has incoming messages
  */
-void process_inbound_udp(int sock) {
+void process_inbound_udp(int sock, bt_config_t *config) {
   /* what is the scope of this #define macro */
 #define BUFLEN 1500
   struct sockaddr_in from;
@@ -110,19 +131,23 @@ void process_inbound_udp(int sock) {
   strcpy(buf_backup, buf);
   token = strtok(buf_backup, " ");
   if (!strcasecmp(token, "WHOHAS")){
-    process_whohas(sock, buf, from, fromlen, BUFLEN);
+    process_whohas(sock, buf, from, fromlen, BUFLEN, config);
+    return;
   }
   if (!strcasecmp(token, "IHAVE")){
-    process_ihave(sock, buf, from, fromlen, BUFLEN);
+    process_ihave(sock, buf, from, fromlen, BUFLEN, config);
+    return;
   }
   if (!strcasecmp(token, "GET")){
-    process_peer_get(sock, buf, from, fromlen, BUFLEN);
+    process_peer_get(sock, buf, from, fromlen, BUFLEN, config);
+    return;
   }
   // ack message?
   
   /* none of the above matches, corrupted message */
   fprintf(stderr, "Corrupted incoming message from %s: %d\n%s\n\n",
           inet_ntoa(from.sin_addr), ntohs(from.sin_port), buf);
+  return;
 }
 
 
@@ -140,8 +165,10 @@ void read_chunk(FILE *f, vector *v){
       token = strtok(NULL, " ");
       vec_add(v, token);
     }else{
+      /* skip the current line */
       fprintf(stderr, "Wrong format of chunk file");
     }
+    free(line); // memory is dynamically allocated in getline
   }
   return;
 }
@@ -150,6 +177,11 @@ void read_chunk(FILE *f, vector *v){
  * be retrieved
  * char *has_chunk_file: a filename pointing to a file containing
  * chunks to owned by current peer
+ *
+ * return char *: filtered chunk hashes in the format "hash hash hash ..."
+ *
+ * given a chunkfile and current peer's has_chunk_file, only keep
+ * those chunks in chunkfile that are not in has_chunk_file
  */
 char *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num){
   FILE *f1, *f2;
@@ -198,30 +230,56 @@ char *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num){
 /*
  * char *peer_list_file: a filename pointing to a file that contains
  * all peers
+ *
+ * 
  */
-peers_t load_peers(char *peer_list_file){
-  // 1.open the peer_list_file
-  // 2. read each line into a peer_info_t struct, & all peers into a
-  // peers_t struct
-  return NULL;
+peers_t *load_peers(char *peer_list_file, peers_t *peers){
+  FILE *f;
+  char *line = NULL, *token;
+  size_t line_len;
+  if ((f = fopen(peer_list_file, "r")) == NULL){
+    fprintf(stderr, "Failed to open peer_list_file %s\n", peer_list_file);
+    return NULL;
+  }
+
+  while(getline(&line, &line_len, f) != -1){
+    token = strtok(line, " ");
+    if (*token != '#'){ // non-comment line
+      peer_info_t *peer = (peer_info_t*)malloc(sizeof(peer_info_t));
+      peer->id = atoi(token);
+      token = strtok(NULL, " ");
+      strcpy(peer->ip, token);
+      token = strtok(NULL, " ");
+      peer->port = atoi(token);
+      vec_add(&peers->peer, peer);
+    }else{
+      // comment line, do nothing here
+    }
+  }
+  return peers;
 }
 
 /*
  * query example: WHOHAS 2 000...015 0000..00441
  */
 char *build_query(char *chunkfile, int chunks_num){
-  //1. parse chunkfile with " "
-  // 2. fill in query type & chunks_num, fill in copy each hash into a buf
-  return NULL;
+  char *query = (char*)malloc(strlen(chunkfile) + sizeof(int) + strlen("WHOHAS") + 2);
+  strcat(query, "WHOHAS ");
+  sprintf(query + strlen(query), "%d ", chunks_num);
+  strcat(query, chunkfile);
+  return query;
 }
 
 /*
  * peers_t peers: contains a list of peers info
  * char *query: the query info to flood to peers
  */
-void flood_peers_query(peers_t peers, char *query){
+void flood_peers_query(peers_t *peers, char *query){
   // 1. loop through each peer in peers
   // 2. send query to each peer with reliability
+  for (int i = 0; i < peers->peer.len; i++){
+    //todo: design the interface to communicate with another peer with idx
+  }
 }
 /*
   need to parse user's command and send requests to server and
@@ -233,10 +291,6 @@ void flood_peers_query(peers_t peers, char *query){
 void process_get(char *chunkfile, char *outputfile, bt_config_t *config) {
   /*
     todos:
-    1. flood the network to send whohas message first
-    steps
-    * get files path from commandline params
-    * get ips of each peer and send them the whohas message
     * collect replies from peers? how to store them? a dynamic list?
     * pick the proper one and initiate data transfer
 
@@ -251,13 +305,24 @@ void process_get(char *chunkfile, char *outputfile, bt_config_t *config) {
     foo file. The advantage is that it also enforces better modularization
    */
   int chunks_num;
+  peers_t peers;
+  init_vector(&peers.peer, sizeof(peer_info_t));
 
   chunkfile = filter_chunkfile(chunkfile, config->has_chunk_file, &chunks_num);
-  peers_t peers = load_peers(config->peer_list_file);
+  if(load_peers(config->peer_list_file, &peers) == NULL){
+    fprintf(stderr, "Error loading the peer_list_info file %s\n", config->peer_list_file);
+    exit(1);
+  }
   char *query = build_query(chunkfile, chunks_num);
-  flood_peers_query(peers, query);
-  printf("PROCESS GET SKELETON CODE CALLED.  Fill me in!  (%s, %s)\n", 
-         chunkfile, outputfile);
+  flood_peers_query(&peers, query);
+  /* allocated in filter_chunkfile function */
+  free(chunkfile);
+  /* free all peers info */
+  for (int i = 0; i < peers.peer.len; i++){
+    free(vec_get(&peers.peer, i));
+  }
+  free(query);
+  return;
 }
 
 
@@ -329,7 +394,7 @@ void peer_run(bt_config_t *config) {
     nfds = select(sock+1, &readfds, NULL, NULL, NULL);
     if (nfds > 0) {
       if (FD_ISSET(sock, &readfds)) {
-	process_inbound_udp(sock);
+	process_inbound_udp(sock, config);
       }
 
       if (FD_ISSET(STDIN_FILENO, &readfds)) {
