@@ -21,6 +21,9 @@
 #include "spiffy.h"
 #include "bt_parse.h"
 #include "input_buffer.h"
+#include "utility.h"
+#include <ctype.h>
+
 
 #define IP_STR_LEN 15
 #define DEFAULT_CHUNK_SIZE 10
@@ -122,6 +125,26 @@ void process_inbound_udp(int sock) {
           inet_ntoa(from.sin_addr), ntohs(from.sin_port), buf);
 }
 
+
+/*
+ * FILE *f: file pointer to file which will be read from
+ * vector *v: a vector pointer which will hold read chunk hashes
+ */
+void read_chunk(FILE *f, vector *v){
+  char *token, *line = NULL;
+  size_t line_len;
+
+  while(getline(&line, &line_len, f) != -1){
+    token = strtok(line, " ");
+    if (isdigit(token)){
+      token = strtok(NULL, " ");
+      vec_add(v, token);
+    }else{
+      fprintf(stderr, "Wrong format of chunk file");
+    }
+  }
+  return;
+}
 /*
  * char *chunkfile: a filename pointing to a file containing chunks to
  * be retrieved
@@ -130,22 +153,46 @@ void process_inbound_udp(int sock) {
  */
 char *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num){
   FILE *f1, *f2;
-  char *filtered_chunks = (char*)malloc(DEFAULT_CHUNK_SIZE * CHUNK_HASH_SIZE), buf[CHUNK_HASH_SIZE];
+  char *filtered_chunks = (char*)malloc(DEFAULT_CHUNK_SIZE * CHUNK_HASH_SIZE);
+  vector v1, v2;
+  init_vector(&v1, DEFAULT_CHUNK_SIZE);
+  init_vector(&v2, DEFAULT_CHUNK_SIZE);
+  int filtered_num = 0, filtered_size = DEFAULT_CHUNK_SIZE;
   
   if ((f1 = fopen(chunkfile, "r")) == NULL){
     fprintf(stderr, "Error opening chunkfile %s \n", chunkfile);
-    exit(1);
+    return NULL;
   }
   if ((f2 = fopen(has_chunk_file, "r")) == NULL){
     fprintf(stderr, "Error opening has_chunk_file %s\n", has_chunk_file);
-    exit(1);
+    return NULL;
   }
-  // 1. read all lines of f1 into a list
-  // 2. read all lines of f2 into a list
-  // 3. copy those hashes in f1 but not in f2 into filtered_chunks
-  // 4. assign value to chunks_num
-  return NULL;
+  read_chunk(f1, &v1);
+  read_chunk(f2, &v2);
+  /* improve performance by replacing the list with a hashmap */
+  for (int i = 0; i < v1.len; i++){
+    int own = 0;
+    char *str_i = vec_get(&v1, i);
+    for (int j = 0; j < v2.len; j++){
+      char *str_j = vec_get(&v2, j);
+      if (!strcmp(str_i, str_j)){
+        own = 1;
+        break;
+      }
+    }
+    if (!own){
+      /* make sure neighboring elements separated by 1 element */
+      strncat(filtered_chunks, str_i, strlen(str_i) + 1);
+      if (++filtered_num > filtered_size){
+        filtered_chunks = realloc(filtered_chunks, filtered_size * CHUNK_HASH_SIZE * 2);
+        filtered_size *= 2;
+      }
+    }
+  }
+  *chunks_num = filtered_num;
+  return filtered_chunks;
 }
+
 
 
 /*
