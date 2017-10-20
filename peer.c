@@ -23,6 +23,8 @@
 #include "input_buffer.h"
 #include "utility.h"
 #include <ctype.h>
+#include "reliable_udp.h"
+
 
 
 #define IP_STR_LEN 15
@@ -92,7 +94,10 @@ void read_chunk(FILE *f, vector *v){
 }
 
 /*
- * the REPLY message is in the format: "IHAVE 2 000...015 0000...00441"
+ * the REPLY message is in the format: "IHAVE 2 000...015
+ * 0000...00441"
+ *
+ * todo: the reply_builder could be made more general
  */
 char *build_ihave_reply(char *reply, int num){
   char *res = (char*)malloc(sizeof(reply) + sizeof(num) + 5 + 2);
@@ -109,7 +114,7 @@ char *build_ihave_reply(char *reply, int num){
  *
  * the REPLY message is in the format: "IHAVE 2 000...015 0000...00441"
  */
-void process_whohas(int sock, char *buf, struct sock_addr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config){
+void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config){
   FILE *f;
   char *token, *reply = (char*)malloc(BUFLEN);
   vector v;
@@ -124,11 +129,12 @@ void process_whohas(int sock, char *buf, struct sock_addr_in from, socklen_t fro
   token = strtok(buf, " ");
   token = strtok(NULL, " ");
   chunks_num = *token;
+  
   while(chunks_num-- > 0){
     token = strtok(NULL, " "); /* get a new chunk hash */
     for (int i = 0; i < v.len; i++){
       if (strstr(token, vec_get(&v, i)) != NULL){
-        /* owns the chunk in query */
+        /* itself owns the chunk in query */
         char *next_space = strchr(token, ' ');
         if (next_space == NULL){ /* no more hash*/
           hash_len = strlen(token);
@@ -145,18 +151,31 @@ void process_whohas(int sock, char *buf, struct sock_addr_in from, socklen_t fro
       }
     }
   }
-  /* todo: the reply_builder could be made more general */
+ 
   char *reply_msg = build_ihave_reply(reply, has_num);
-  //send reply to requester
+  /* if contains no chunks, reply with an empty list of chunks */
+  send_udp_packet(from, fromlen, reply_msg);
   free(reply);
+  free(reply_msg);
   return;
 }
 
 /*
-  process IHAVE message from a peer.
-  need to develop a reliable transfer protocol ontop of UDP
+ *  process IHAVE message from a peer.
+ *
+ *  BitTorrent uses a "rarest-chunk-first" heuristic where it tries to
+ *  fetch the rarest chunk first.
  */
-void process_ihave(int sock, char *buf, struct sock_addr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config){
+void process_ihave(int sock, char *buf, struct sockaddr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config){
+  /* todo: find a way to store all IHAVE messages */
+  /* create a vector in the peer_run function, and then for each
+     whohas message sent, set a timer for it. Whenever in
+     process_ihave function. Chechk the # of crashes peers & responded
+     peers. If # is equal to total # of peers, then check if
+     re-flooding is needed. If there are still peers not responded,
+     then wait for IHAVE or its timer to set off. ==> the timer
+     callback and this function will do similar things
+   */
   return;
 }
 
@@ -164,7 +183,7 @@ void process_ihave(int sock, char *buf, struct sock_addr_in from, socklen_t from
   counterpart of the process_ihave function
   what kind of reliable protocol to develop?
  */
-void process_peer_get(int sock, char *buf, struct sock_addr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config){
+void process_peer_get(int sock, char *buf, struct sockaddr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config){
   // 1. open the master hash_chunk_file
   // 2. how to retrieve the chunk based on chunk hash & id???
   return;
