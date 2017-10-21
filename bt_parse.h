@@ -49,6 +49,8 @@ struct bt_config_s {
   char **argv;
   /* peers stored in a self-implemented vector */
   peers_t *peer;
+  /* timers recording time for whohas messages */
+  vector whohas_timers;
   /* starter code provided, employs a linked list implementation */
   bt_peer_t *peers;
 };

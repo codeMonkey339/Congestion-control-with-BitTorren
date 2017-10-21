@@ -1,9 +1,12 @@
 #ifndef _UTILITY_
 #define _UTILITY_
 
+#include <time.h>
+
 
 #define DEFAULT_VEC_SIZE 10
 #define IP_STR_LEN 15
+#define IHAVE_TIMEOUT_TIME 180 /* timeout time is 180s */
 typedef struct vector{
   void *val;
   int ele_size;
@@ -23,6 +26,12 @@ typedef struct peers{
   int num;
 }peers_t;
 
+
+typedef struct timer{
+  clock_t start;
+  short repeat_times;
+  short peer_id;
+}timer;
 
 typedef struct ihave{
   char *msg; /* the ihave message from the peer */
