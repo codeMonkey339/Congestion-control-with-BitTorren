@@ -57,6 +57,17 @@ void *vec_get(vector *vec, int idx){
 }
 
 
+/*
+ * vector *vec: the vector pointer
+ * void *ele: pointer to the vector element
+ * int idx: the index at which should the vector element be inserted at
+ *
+ * this function will insert an element ele at index idx into vector vec
+ */
+void vec_insert_at(vector *vec, void *ele, int idx){
+
+}
+
 int read_from_sock(int sock, char *buf, int BUFLEN){
   int len = 0;
   if ((len == read_from_sock(sock, buf, BUFLEN)) < 0){

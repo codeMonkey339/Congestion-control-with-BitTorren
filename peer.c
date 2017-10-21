@@ -27,21 +27,10 @@
 
 
 
-#define IP_STR_LEN 15
+
 #define DEFAULT_CHUNK_SIZE 10
 #define CHUNK_HASH_SIZE 45
 
-
-typedef struct peer_info{
-  int id;
-  char ip[IP_STR_LEN];
-  int port;
-}peer_info_t;
-
-typedef struct peers{
-  vector peer;
-  int num;
-}peers_t;
 
 void peer_run(bt_config_t *config);
 
@@ -161,12 +150,25 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
 }
 
 /*
+ * Have collected replies from all peers. Need to send GET messages to
+ * corresponding peers based on scarcity
+ */
+void send_get_queries(bt_config_t *config, vector *ihave_msgs){
+  //todo: find the correct peer based on scarcity and send GET query
+}
+
+
+/*
+ *  char *buf: the incoming message has been read and stored in this
+ * 
  *  process IHAVE message from a peer.
  *
  *  BitTorrent uses a "rarest-chunk-first" heuristic where it tries to
  *  fetch the rarest chunk first.
+ *
+ *  format of the IHAVE message: "IHAVE 2 0000...015 0000..00441"
  */
-void process_ihave(int sock, char *buf, struct sockaddr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config){
+void process_ihave(int sock, char *buf, struct sockaddr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config, vector *ihave_msgs){
   /* todo: find a way to store all IHAVE messages */
   /* create a vector in the peer_run function, and then for each
      whohas message sent, set a timer for it. Whenever in
@@ -174,8 +176,42 @@ void process_ihave(int sock, char *buf, struct sockaddr_in from, socklen_t froml
      peers. If # is equal to total # of peers, then check if
      re-flooding is needed. If there are still peers not responded,
      then wait for IHAVE or its timer to set off. ==> the timer
-     callback and this function will do similar things
-   */
+     callback and this function will do similar things 
+  */
+  char *token, *ip, peer_idx, *next_space;
+  int ihave_nums;
+
+  ip = inet_ntoa(from.sin_addr);
+  for (int i = 0; i < config->peer->peer.len; i++){
+    if (!strcmp(ip, ((peer_info_t*)vec_get(&config->peer->peer, i))->ip)){
+      peer_idx = i;
+      break;
+    }
+  }
+  token = strtok(buf, " ");
+  token = strtok(NULL, " ");
+  ihave_nums = atoi(token);
+  ihave_t *ihave = (ihave_t*)malloc(sizeof(ihave_t));
+  ihave->chunk_num = ihave_nums;
+  ihave->msg = (char*)malloc(strlen(buf) + 1);
+  strncpy(ihave->msg, buf, strlen(buf) + 1);
+  for (int i = 0; i < ihave_nums; i++){
+    token = strtok(NULL, " ");
+    next_space = strchr(token, ' ');
+    if (next_space == NULL){
+      ihave->chunks[i] = (char*)malloc(strlen(token) + 1);
+      strncpy(ihave->chunks[i], token, strlen(token) + 1);
+    }else{
+      ihave->chunks[i] = (char*)malloc(next_space - token + 1);
+      memset(ihave->chunks[i], 0, next_space - token + 1);
+      strncpy(ihave->chunks[i], token, next_space - token);
+    }
+  }
+  vec_insert_at(ihave_msgs, ihave, peer_idx);
+  /* have received the replies from all peers */
+  if (ihave_msgs->len == config->peer->peer.len){
+    send_get_queries(config, ihave_msgs);
+  }
   return;
 }
 
@@ -192,7 +228,7 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from, socklen_t fr
 /*
  * int sock: socket # that has incoming messages
  */
-void process_inbound_udp(int sock, bt_config_t *config) {
+void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
   /* what is the scope of this #define macro */
 #define BUFLEN 1500
   struct sockaddr_in from;
@@ -210,7 +246,7 @@ void process_inbound_udp(int sock, bt_config_t *config) {
     return;
   }
   if (!strcasecmp(token, "IHAVE")){
-    process_ihave(sock, buf, from, fromlen, BUFLEN, config);
+    process_ihave(sock, buf, from, fromlen, BUFLEN, config, ihave_msgs);
     return;
   }
   if (!strcasecmp(token, "GET")){
@@ -286,12 +322,14 @@ char *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num){
  * char *peer_list_file: a filename pointing to a file that contains
  * all peers
  *
- * 
+ * when loading peers, need to exclude the peer itself
  */
-peers_t *load_peers(char *peer_list_file, peers_t *peers){
+peers_t *load_peers(bt_config_t *config, peers_t *peers, vector *ihave_msgs){
   FILE *f;
   char *line = NULL, *token;
   size_t line_len;
+  char *peer_list_file = config->peer_list_file;
+  short peer_id;
   if ((f = fopen(peer_list_file, "r")) == NULL){
     fprintf(stderr, "Failed to open peer_list_file %s\n", peer_list_file);
     return NULL;
@@ -299,18 +337,24 @@ peers_t *load_peers(char *peer_list_file, peers_t *peers){
 
   while(getline(&line, &line_len, f) != -1){
     token = strtok(line, " ");
-    if (*token != '#'){ // non-comment line
+    peer_id = atoi(token);
+    if (*token != '#' && peer_id != config->identity){ // non-comment line
       peer_info_t *peer = (peer_info_t*)malloc(sizeof(peer_info_t));
-      peer->id = atoi(token);
+      peer->id = peer_id;
       token = strtok(NULL, " ");
       strcpy(peer->ip, token);
       token = strtok(NULL, " ");
       peer->port = atoi(token);
       vec_add(&peers->peer, peer);
+
+      /* initialize a ihave_t struct for each peer */
+      ihave_t *ihave = (ihave_t *)malloc(sizeof(ihave_t));
+      vec_add(ihave_msgs, ihave);
     }else{
       // comment line, do nothing here
     }
   }
+  config->peer = peers;
   return peers;
 }
 
@@ -343,7 +387,7 @@ void flood_peers_query(peers_t *peers, char *query){
   reliable transfer: only data packets will be transmitted reliably
 
 */
-void process_get(char *chunkfile, char *outputfile, bt_config_t *config) {
+void process_get(char *chunkfile, char *outputfile, bt_config_t *config, vector *ihave_msgs) {
   /*
     todos:
     * collect replies from peers? how to store them? a dynamic list?
@@ -363,19 +407,17 @@ void process_get(char *chunkfile, char *outputfile, bt_config_t *config) {
   peers_t peers;
   init_vector(&peers.peer, sizeof(peer_info_t));
 
+  init_vector(ihave_msgs, sizeof(ihave_t));
   chunkfile = filter_chunkfile(chunkfile, config->has_chunk_file, &chunks_num);
-  if(load_peers(config->peer_list_file, &peers) == NULL){
+  if(load_peers(config, &peers, ihave_msgs) == NULL){
     fprintf(stderr, "Error loading the peer_list_info file %s\n", config->peer_list_file);
     exit(1);
   }
   char *query = build_query(chunkfile, chunks_num);
+
   flood_peers_query(&peers, query);
   /* allocated in filter_chunkfile function */
   free(chunkfile);
-  /* free all peers info */
-  for (int i = 0; i < peers.peer.len; i++){
-    free(vec_get(&peers.peer, i));
-  }
   free(query);
   return;
 }
@@ -392,7 +434,7 @@ void process_get(char *chunkfile, char *outputfile, bt_config_t *config) {
  * for requests coming from other peer:
  * 
  */
-void handle_user_input(char *line, void *cbdata, bt_config_t *config) {
+void handle_user_input(char *line, void *cbdata, bt_config_t *config, vector *ihave_msgs) {
   char chunkf[128], outf[128];
 
   bzero(chunkf, sizeof(chunkf));
@@ -403,7 +445,7 @@ void handle_user_input(char *line, void *cbdata, bt_config_t *config) {
    */
   if (sscanf(line, "GET %120s %120s", chunkf, outf)) {
     if (strlen(outf) > 0) {
-      process_get(chunkf, outf, config);
+      process_get(chunkf, outf, config, ihave_msgs);
     }
   }
 }
@@ -418,7 +460,8 @@ void peer_run(bt_config_t *config) {
   struct sockaddr_in myaddr;
   fd_set readfds;
   struct user_iobuf *userbuf;
-  
+  vector ihave_msgs;
+
   if ((userbuf = create_userbuf()) == NULL) {
     perror("peer_run could not allocate userbuf");
     exit(-1);
@@ -428,19 +471,19 @@ void peer_run(bt_config_t *config) {
     perror("peer_run could not create socket");
     exit(-1);
   }
-  
+
   bzero(&myaddr, sizeof(myaddr));
   myaddr.sin_family = AF_INET;
   myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
   myaddr.sin_port = htons(config->myport);
-  
+
   if (bind(sock, (struct sockaddr *) &myaddr, sizeof(myaddr)) == -1) {
     perror("peer_run could not bind socket");
     exit(-1);
   }
-  
+
   spiffy_init(config->identity, (struct sockaddr *)&myaddr, sizeof(myaddr));
-  
+
   while (1) {
     int nfds;
     FD_SET(STDIN_FILENO, &readfds);
@@ -449,13 +492,23 @@ void peer_run(bt_config_t *config) {
     nfds = select(sock+1, &readfds, NULL, NULL, NULL);
     if (nfds > 0) {
       if (FD_ISSET(sock, &readfds)) {
-	process_inbound_udp(sock, config);
+	process_inbound_udp(sock, config, &ihave_msgs);
       }
 
       if (FD_ISSET(STDIN_FILENO, &readfds)) {
 	process_user_input(STDIN_FILENO, userbuf, handle_user_input,
-			   "Currently unused", config);
+			   "Currently unused", config, &ihave_msgs);
       }
     }
+  }
+  /*
+    when program finishes, free all peers info
+
+    todo:
+    In addition, whenever a commandline request is serviced, the
+    memeory should be released as well
+   */
+  for (int i = 0; i < config->peer->peer.len; i++){
+    free(vec_get(&config->peer->peer, i));
   }
 }

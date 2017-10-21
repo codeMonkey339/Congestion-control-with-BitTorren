@@ -15,6 +15,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include "utility.h"
 
 #define BT_FILENAME_LEN 255
 #define BT_MAX_PEERS 1024
@@ -46,7 +47,9 @@ struct bt_config_s {
 
   int argc; 
   char **argv;
-
+  /* peers stored in a self-implemented vector */
+  peers_t *peer;
+  /* starter code provided, employs a linked list implementation */
   bt_peer_t *peers;
 };
 typedef struct bt_config_s bt_config_t;
