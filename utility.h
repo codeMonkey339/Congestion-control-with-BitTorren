@@ -31,6 +31,8 @@ typedef struct timer{
   clock_t start;
   short repeat_times;
   short peer_id;
+  /* each timer carries with itself the message to send */
+  char *msg;
 }timer;
 
 typedef struct ihave{

@@ -83,6 +83,21 @@ void read_chunk(FILE *f, vector *v){
 }
 
 /*
+  todo:
+  release all the memories occupies by timers
+ */
+void release_all_timers(bt_config_t *config){
+  vector *whohas = &config->whohas_timers;
+  for (int i = 0; i < whohas->len; i++){
+    timer *t = vec_get(whohas, i);
+    free(t->msg);
+    free(vec_get(whohas, i));
+  }
+  return;
+}
+
+
+/*
  * the REPLY message is in the format: "IHAVE 2 000...015
  * 0000...00441"
  *
@@ -149,6 +164,7 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
   return;
 }
 
+
 /*
  * Have collected replies from all peers. Need to send GET messages to
  * corresponding peers based on scarcity
@@ -162,7 +178,24 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
      1. find the correct peer based on scarcity and send GET query
      2. remove all timers for whohas messages
   */
+  release_all_timers(config);
   fprintf(stdout, "sending GET query to the right peer based on scarcity \n");
+  return;
+}
+
+
+/*
+  make the functio more generic?
+ */
+void remove_timer(vector *cur_timer, int idx){
+  timer *t;
+  for (int i = 0; i < cur_timer->len; i++){
+    t = (timer*)vec_get(cur_timer, i);
+    if (t->peer_id == idx){
+      t->start = -1;
+      break;
+    }
+  }
   return;
 }
 
@@ -176,19 +209,13 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
  *  fetch the rarest chunk first.
  *
  *  format of the IHAVE message: "IHAVE 2 0000...015 0000..00441"
+ *
+ *      Edge case:
+ *      what if for a certain chunk, none of the peers owning it replies.
+ *
  */
-void process_ihave(int sock, char *buf, struct sockaddr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config, vector *ihave_msgs){
-  /* create a vector in the peer_run function, and then for each
-     whohas message sent, set a timer for it. Whenever in
-     process_ihave function. Chechk the # of crashes peers & responded
-     peers. If # is not equal to total # of peers, then check if
-     re-flooding is needed. If there are still peers not responded,
-     then wait for IHAVE or its timer to set off. ==> the timer
-     callback and this function will do similar things
-
-     Edge case:
-     what if for a certain chunk, none of the peers owning it replies.
-  */
+void process_ihave(int sock, char *buf, struct sockaddr_in from,
+                   socklen_t fromlen, int BUFLEN, bt_config_t *config, vector *ihave_msgs){
   char *token, *ip, peer_idx, *next_space;
   int ihave_nums;
 
@@ -223,14 +250,7 @@ void process_ihave(int sock, char *buf, struct sockaddr_in from, socklen_t froml
   if (ihave_msgs->len == config->peer->peer.len){
     send_get_queries(config, ihave_msgs);
   }
-  // todo: convert this to a more generic function
-  for (int i = 0; i < config->whohas_timers.len; i++){
-    timer *t = (timer*)vec_get(&config->whohas_timers, i);
-    if (t->peer_id == peer_idx){
-      t->start = -1;
-      break;
-    }
-  }
+  remove_timer(&config->whohas_timers, peer_idx);
   return;
 }
 
@@ -395,17 +415,17 @@ char *build_query(char *chunkfile, int chunks_num){
  * char *query: the query info to flood to peers
  */
 void flood_peers_query(peers_t *peers, char *query, bt_config_t *config){
-  // 1. loop through each peer in peers
-  // 2. send query to each peer with reliability
-  // 3. set a timer for each peer
   init_vector(&config->whohas_timers, sizeof(timer));
   for (int i = 0; i < peers->peer.len; i++){
-    //todo: design the interface to communicate with with idx
+    //todo: need to send the flood the message to all peers
     clock_t start = clock();
     timer *t = (timer*)malloc(sizeof(timer));
     t->start = start;
     t->repeat_times = 0;
     t->peer_id = ((peer_info_t*)vec_get(&peers->peer,i))->id;
+    t->msg = (char*)malloc(strlen(query) + 1);
+    /* strcpy includes the terminating null */
+    strcpy(t->msg, query);
     vec_add(&config->whohas_timers, t);
   }
 }
@@ -476,6 +496,17 @@ void handle_user_input(char *line, void *cbdata, bt_config_t *config, vector *ih
   }
 }
 
+peer_info_t *get_peer_info(peers_t *peers, int idx){
+  peer_info_t *p;
+  for (int i = 0; i < peers->peer.len ;i++){
+    p = (peer_info_t*)vec_get(&peers->peer, i);
+    if (p->id == idx){
+      break;
+    }
+  }
+  return p;
+}
+
 /*
  * checks all the timers stored in config. If there is any timeouts,
  * need to re-send the message.
@@ -483,28 +514,21 @@ void handle_user_input(char *line, void *cbdata, bt_config_t *config, vector *ih
  * todo: need to remove the timer when the message has been received!
  */
 void check_for_timeouts(bt_config_t *config){
+  /* check for whohas timeouts */
   for (int i = 0; i < config->whohas_timers.len; i++){
     clock_t cur = clock();
     timer *t = (timer*)vec_get(&config->whohas_timers, i);
     if (t->start > 0){ /* hasn't received message */
       if ((cur - t->start) * 1000 / CLOCKS_PER_SEC >= IHAVE_TIMEOUT_TIME){
         t->repeat_times++;
-        // todo: need to build the query message & and then re-send
-        // where to store the query message?
+        t->start = clock();
+        //todo: need to send the message again!
       }
     }
   }
-
   return;
 }
 
-/*
-  todo:
-  release all the memories occupies by timers
- */
-void release_all_timers(bt_config_t *config){
-  return;
-}
 
 void release_all_peers(bt_config_t *config){
   for (int i = 0; i < config->peer->peer.len; i++){
