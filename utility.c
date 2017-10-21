@@ -5,26 +5,6 @@
 #include <errno.h>
 
 
-/*
- * read a line from file into the buf
- *
- * there is a built-in getline function provided!!!
- * if buf is overflowed, then NULL is returned;
- */
-char *getline(FILE *f, char *buf, int size){
-  /* line feed will come in the form of \r\n or \n
-     will end with \r anyway
-  */
-  int len = 0;
-  do{
-    *buf++ = (char)fgetc(f);
-    len++;
-    if (len >= size){
-      return NULL;
-    }
-  }while(*buf != EOF && *(buf - 1) != '\n');
-  return buf;
-}
 
 // implement a vector type here
 

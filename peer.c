@@ -523,6 +523,7 @@ void check_for_timeouts(bt_config_t *config){
         t->repeat_times++;
         t->start = clock();
         //todo: need to send the message again!
+        fprintf(stdout, "Sending the query to the peer again \n");
       }
     }
   }

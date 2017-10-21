@@ -19,7 +19,7 @@ int main() {
   assert(u != NULL);
 
   while (1) {
-    process_user_input(STDIN_FILENO, u, printline, "Cows moo!", NULL);
+    process_user_input(STDIN_FILENO, u, printline, "Cows moo!", NULL, NULL);
   }
   
   return 0;

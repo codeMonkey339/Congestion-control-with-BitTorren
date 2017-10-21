@@ -17,5 +17,4 @@ struct user_iobuf *create_userbuf();
   process commandline input from user with robust io
  */
 void process_user_input(int fd, struct user_iobuf *userbuf, 
-			void (*handle_line)(char *, void *, bt_config_t *), void *cbdata, bt_config_t *config, vector *ihave_msgs);
-
+			void (*handle_line)(char *, void *, bt_config_t *, vector *), void *cbdata, bt_config_t *config, vector *ihave_msgs);
