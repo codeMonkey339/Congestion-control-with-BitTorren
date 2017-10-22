@@ -47,6 +47,8 @@ struct bt_config_s {
 
   int argc; 
   char **argv;
+  /* vector storing all the ihave messages from peers */
+  vector ihave_msgs;
   /* peers stored in a self-implemented vector */
   peers_t *peer;
   /* timers recording time for whohas messages */

@@ -1,6 +1,7 @@
 #include "reliable_udp.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <stdio.h>
 
 /*
  * struct sockaddr_in to: a struct containing the destination address
@@ -15,5 +16,6 @@
  */
 void send_udp_packet(struct sockaddr_in to, socklen_t tolen, char *msg){
 
+  fprintf(stdout, "sending a udp packet unreliably \n");
   return;
 }

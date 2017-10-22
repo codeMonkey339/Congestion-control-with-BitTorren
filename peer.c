@@ -97,6 +97,21 @@ void release_all_timers(bt_config_t *config){
 }
 
 
+void release_all_dynamic_memory(bt_config_t *config){
+  /* free all the ihave messages */
+  for (int i = 0; i < config->ihave_msgs.len; i++){
+    ihave_t *ihave = vec_get(&config->ihave_msgs, i);
+    free(ihave->msg);
+    for (int j = 0; j < ihave->chunk_num; j++){
+      free(ihave->chunks[j]);
+    }
+    free(ihave);
+  }
+
+  return;
+}
+
+
 /*
  * the REPLY message is in the format: "IHAVE 2 000...015
  * 0000...00441"
@@ -104,7 +119,7 @@ void release_all_timers(bt_config_t *config){
  * todo: the reply_builder could be made more general
  */
 char *build_ihave_reply(char *reply, int num){
-  char *res = (char*)malloc(sizeof(reply) + sizeof(num) + 5 + 2);
+  char *res = (char*)malloc(sizeof(reply) + sizeof(num) + strlen("ihave") + 3);
   strcat(res, "IHAVE ");
   sprintf(res + strlen(res), "%d ", num);
   strcat(res, reply);
@@ -137,16 +152,10 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
   
   while(chunks_num-- > 0){
     token = strtok(NULL, " "); /* get a new chunk hash, token is null terminated? */
-    /* call utility function instead of implement it here */
     for (int i = 0; i < v.len; i++){
       if (strstr(token, vec_get(&v, i)) != NULL){
-        /* itself owns the chunk in query */
-        char *next_space = strchr(token, ' ');
-        if (next_space == NULL){ /* no more hash*/
-          hash_len = strlen(token);
-        }else{
-          hash_len = next_space - token;
-        }
+        /* strtok will replace ' ' with '\0' */
+        hash_len = strlen(token);
         if ((reply_len + hash_len) >= buf_size){
           buf = (char*)realloc(reply, 2 * buf_size);
         }
@@ -185,6 +194,7 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
 
   */
   release_all_timers(config);
+  release_all_dynamic_memory(config);
   fprintf(stdout, "sending GET query to the right peer based on scarcity \n");
   return;
 }
@@ -198,7 +208,7 @@ void remove_timer(vector *cur_timer, int idx){
   for (int i = 0; i < cur_timer->len; i++){
     t = (timer*)vec_get(cur_timer, i);
     if (t->peer_id == idx){
-      t->start = -1;
+      t->start = -1; /* only need to reset the start time */
       break;
     }
   }
@@ -216,8 +226,8 @@ void remove_timer(vector *cur_timer, int idx){
  *
  *  format of the IHAVE message: "IHAVE 2 0000...015 0000..00441"
  *
- *      Edge case:
- *      what if for a certain chunk, none of the peers owning it replies.
+ *  Edge case:
+ *  what if for a certain chunk, none of the peers owning it replies.
  *
  */
 void process_ihave(int sock, char *buf, struct sockaddr_in from,
@@ -226,37 +236,33 @@ void process_ihave(int sock, char *buf, struct sockaddr_in from,
   int ihave_nums;
 
   ip = inet_ntoa(from.sin_addr);
+  /* get the peer_id of the incoming packet */
   for (int i = 0; i < config->peer->peer.len; i++){
     if (!strcmp(ip, ((peer_info_t*)vec_get(&config->peer->peer, i))->ip)){
       peer_idx = i;
       break;
     }
   }
+
+  /* parse the IHAVE reply message */
   token = strtok(buf, " ");
   token = strtok(NULL, " ");
   ihave_nums = atoi(token);
   ihave_t *ihave = (ihave_t*)malloc(sizeof(ihave_t));
   ihave->chunk_num = ihave_nums;
   ihave->msg = (char*)malloc(strlen(buf) + 1);
-  strncpy(ihave->msg, buf, strlen(buf) + 1);
+  strcpy(ihave->msg, buf);
   for (int i = 0; i < ihave_nums; i++){
     token = strtok(NULL, " ");
-    next_space = strchr(token, ' ');
-    if (next_space == NULL){ /* last chunk hash */
-      ihave->chunks[i] = (char*)malloc(strlen(token) + 1);
-      strncpy(ihave->chunks[i], token, strlen(token) + 1);
-    }else{ /* middle chunk hash */
-      ihave->chunks[i] = (char*)malloc(next_space - token + 1);
-      memset(ihave->chunks[i], 0, next_space - token + 1);
-      strncpy(ihave->chunks[i], token, next_space - token);
-    }
+    ihave->chunks[i] = (char*)malloc(strlen(token) + 1);
+    strcpy(ihave->chunks[i], token);
   }
   vec_insert_at(ihave_msgs, ihave, peer_idx);
+  remove_timer(&config->whohas_timers, peer_idx);
   /* have received the replies from all peers */
   if (ihave_msgs->len == config->peer->peer.len){
     send_get_queries(config, ihave_msgs);
   }
-  remove_timer(&config->whohas_timers, peer_idx);
   return;
 }
 
@@ -386,6 +392,7 @@ peers_t *load_peers(bt_config_t *config){
   char *peer_list_file = config->peer_list_file;
   short peer_id;
   peers_t *peers = config->peer;
+  init_vector(&config->ihave_msgs, sizeof(ihave_t));
   if ((f = fopen(peer_list_file, "r")) == NULL){
     fprintf(stderr, "Failed to open peer_list_file %s\n", peer_list_file);
     return NULL;
@@ -408,6 +415,9 @@ peers_t *load_peers(bt_config_t *config){
       token = strtok(NULL, " ");
       peer->port = atoi(token);
       vec_add(&peers->peer, peer);
+      /* insert the ihave element into vector */
+      ihave_t *ihave = (ihave_t*)malloc(sizeof(ihave_t));
+      vec_add(&config->ihave_msgs, ihave);
     }else{
       // comment line, do nothing here
     }
@@ -568,6 +578,7 @@ void release_all_peers(bt_config_t *config){
     free(vec_get(&config->peer->peer, i));
   }
   free(config->peer);
+
 
   return;
 }

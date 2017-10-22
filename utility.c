@@ -43,9 +43,12 @@ void *vec_get(vector *vec, int idx){
  * int idx: the index at which should the vector element be inserted at
  *
  * this function will insert an element ele at index idx into vector vec
+ * assumption: all the elements before idx have been initialized
  */
 void vec_insert_at(vector *vec, void *ele, int idx){
-
+  void *cur = vec_get(vec, idx);
+  strncpy(cur, ele, vec->ele_size);
+  return;
 }
 
 
