@@ -21,7 +21,8 @@ struct user_iobuf *create_userbuf() {
 }
 
 void process_user_input(int fd, struct user_iobuf *userbuf, 
-			void (*handle_line)(char *, void *, bt_config_t *, vector *), void *cbdata, bt_config_t *config, vector *ihave_msgs)
+			void (*handle_line)(char *, void *, bt_config_t *, vector *),
+                        void *cbdata, bt_config_t *config, vector *ihave_msgs)
 {
   int nread;
   char *ret;
@@ -49,6 +50,7 @@ void process_user_input(int fd, struct user_iobuf *userbuf,
 
   /*
     handle bytes in the current request
+    this is how a line is supposed to be read in C
    */
   while ((ret = strchr(userbuf->buf, '\n')) != NULL) {
     *ret = '\0';

@@ -75,7 +75,7 @@ void read_chunk(FILE *f, vector *v){
       vec_add(v, token);
     }else{
       /* skip the current line */
-      fprintf(stderr, "Wrong format of chunk file");
+      fprintf(stdout, "Comment line in chunk file\n");
     }
     free(line); // memory is dynamically allocated in getline
   }
@@ -129,13 +129,15 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
   }
   init_vector(&v, DEFAULT_CHUNK_SIZE);
   read_chunk(f, &v);
+  /* todo: maybe this api needs to be changed */
   read_from_sock(sock, buf, BUFLEN);
   token = strtok(buf, " ");
   token = strtok(NULL, " ");
   chunks_num = *token;
   
   while(chunks_num-- > 0){
-    token = strtok(NULL, " "); /* get a new chunk hash */
+    token = strtok(NULL, " "); /* get a new chunk hash, token is null terminated? */
+    /* call utility function instead of implement it here */
     for (int i = 0; i < v.len; i++){
       if (strstr(token, vec_get(&v, i)) != NULL){
         /* itself owns the chunk in query */
@@ -169,6 +171,8 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
  * Have collected replies from all peers. Need to send GET messages to
  * corresponding peers based on scarcity
  *
+ * The DATA packets need to employ reliable tranfer, so everything will completed here
+ *
  * Notes:
  * once a command line request is processed, all dynamically allocated
  * resources should be released
@@ -177,6 +181,8 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
   /* todo:
      1. find the correct peer based on scarcity and send GET query
      2. remove all timers for whohas messages
+     3. remove dynamically allocated memeories
+
   */
   release_all_timers(config);
   fprintf(stdout, "sending GET query to the right peer based on scarcity \n");
@@ -262,12 +268,17 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
                       socklen_t fromlen, int BUFLEN, bt_config_t *config){
   // 1. open the master hash_chunk_file
   // 2. how to retrieve the chunk based on chunk hash & id???
+
+  
   fprintf(stdout, "Servicing peers' request for a certain chunk of  file \n");
   return;
 }
 
 /*
  * int sock: socket # that has incoming messages
+ *
+ * vector *ihave_msgs: should not be a separate argument, instead, it
+ * should be placed within config in a proper way
  */
 void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
   /* what is the scope of this #define macro */
@@ -345,8 +356,10 @@ char *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num){
       }
     }
     if (!own){
-      /* make sure neighboring elements separated by 1 element */
-      strncat(filtered_chunks, str_i, strlen(str_i) + 1);
+      /* strncat will overwrite the terminating null byte at the end
+         of dest, and then appends a terminating null byte */
+      strcat(filtered_chunks, str_i);
+      strcat(filtered_chunks, " ");
       if (++filtered_num > filtered_size){
         filtered_chunks = realloc(filtered_chunks, filtered_size * CHUNK_HASH_SIZE * 2);
         filtered_size *= 2;
@@ -362,15 +375,17 @@ char *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num){
 /*
  * char *peer_list_file: a filename pointing to a file that contains
  * all peers
+ * vector *ihave_msgs: a vector which will contain query messages
  *
  * when loading peers, need to exclude the peer itself
  */
-peers_t *load_peers(bt_config_t *config, peers_t *peers, vector *ihave_msgs){
+peers_t *load_peers(bt_config_t *config){
   FILE *f;
-  char *line = NULL, *token;
+  char *line = NULL, *token, *next_space;
   size_t line_len;
   char *peer_list_file = config->peer_list_file;
   short peer_id;
+  peers_t *peers = config->peer;
   if ((f = fopen(peer_list_file, "r")) == NULL){
     fprintf(stderr, "Failed to open peer_list_file %s\n", peer_list_file);
     return NULL;
@@ -378,19 +393,21 @@ peers_t *load_peers(bt_config_t *config, peers_t *peers, vector *ihave_msgs){
 
   while(getline(&line, &line_len, f) != -1){
     token = strtok(line, " ");
-    peer_id = atoi(token);
-    if (*token != '#' && peer_id != config->identity){ // non-comment line
+    peer_id = atoi(token); /* any *token has to be a char */
+    /*
+      format of the peer info
+      1 127.0.0.1 1111
+     */
+    if (*token != '#' && peer_id != config->identity){
       peer_info_t *peer = (peer_info_t*)malloc(sizeof(peer_info_t));
       peer->id = peer_id;
       token = strtok(NULL, " ");
-      strcpy(peer->ip, token);
+      next_space = strchr(token, ' ');
+      strncpy(peer->ip, token, next_space - token);
+      strcat(peer->ip, "\0");
       token = strtok(NULL, " ");
       peer->port = atoi(token);
       vec_add(&peers->peer, peer);
-
-      /* initialize a ihave_t struct for each peer */
-      ihave_t *ihave = (ihave_t *)malloc(sizeof(ihave_t));
-      vec_add(ihave_msgs, ihave);
     }else{
       // comment line, do nothing here
     }
@@ -403,7 +420,7 @@ peers_t *load_peers(bt_config_t *config, peers_t *peers, vector *ihave_msgs){
  * query example: WHOHAS 2 000...015 0000..00441
  */
 char *build_query(char *chunkfile, int chunks_num){
-  char *query = (char*)malloc(strlen(chunkfile) + sizeof(int) + strlen("WHOHAS") + 2);
+  char *query = (char*)malloc(strlen(chunkfile) + sizeof(int) + strlen("WHOHAS") + 3);
   strcat(query, "WHOHAS ");
   sprintf(query + strlen(query), "%d ", chunks_num);
   strcat(query, chunkfile);
@@ -418,16 +435,19 @@ void flood_peers_query(peers_t *peers, char *query, bt_config_t *config){
   init_vector(&config->whohas_timers, sizeof(timer));
   for (int i = 0; i < peers->peer.len; i++){
     //todo: need to send the flood the message to all peers
+
+    
     clock_t start = clock();
     timer *t = (timer*)malloc(sizeof(timer));
     t->start = start;
     t->repeat_times = 0;
     t->peer_id = ((peer_info_t*)vec_get(&peers->peer,i))->id;
     t->msg = (char*)malloc(strlen(query) + 1);
-    /* strcpy includes the terminating null */
     strcpy(t->msg, query);
     vec_add(&config->whohas_timers, t);
   }
+
+  return;
 }
 /*
   need to parse user's command and send requests to server and
@@ -435,33 +455,39 @@ void flood_peers_query(peers_t *peers, char *query, bt_config_t *config){
 
   reliable transfer: only data packets will be transmitted reliably
 
+  testing:
+  1. create chunk files for testing purpose
+  2. how to proceed with unit testing?
+  * for small stuff, you can conditionally compile these tests in the
+  same file in which you have defined them
+  * write separate "test_foo.c" files that use the functions in the
+  foo file. The advantage is that it also enforces better modularization
+
 */
 void process_get(char *chunkfile, char *outputfile, bt_config_t *config, vector *ihave_msgs) {
   /*
     todos:
     2. build a reliable file transfer protocol ontop of UDP
-
-    testing:
-    1. create chunk files for testing purpose
-    2. how to proceed with unit testing?
-    * for small stuff, you can conditionally compile these tests in the
-    same file in which you have defined them
-    * write separate "test_foo.c" files that use the functions in the
-    foo file. The advantage is that it also enforces better modularization
-   */
+  */
   int chunks_num;
-  peers_t peers;
-  init_vector(&peers.peer, sizeof(peer_info_t));
+  config->peer = (peers_t*)malloc(sizeof(peers_t));
+  init_vector(&config->peer->peer, sizeof(peer_info_t));
 
   init_vector(ihave_msgs, sizeof(ihave_t));
-  chunkfile = filter_chunkfile(chunkfile, config->has_chunk_file, &chunks_num);
-  if(load_peers(config, &peers, ihave_msgs) == NULL){
-    fprintf(stderr, "Error loading the peer_list_info file %s\n", config->peer_list_file);
+  if ((chunkfile = filter_chunkfile(chunkfile, config->has_chunk_file, &chunks_num)) == NULL){
+    fprintf(stderr, "Error filtering chunk files that are in own hash-chunk-file \n");
     exit(1);
   }
+
+  /* initialize ihave msg vector */
+  for (int i = 0; i < config->peer->peer.len; i++){
+    ihave_t *ihave = (ihave_t*)malloc(sizeof(ihave_t*));
+    vec_add(ihave_msgs, ihave);
+  }
+
   char *query = build_query(chunkfile, chunks_num);
 
-  flood_peers_query(&peers, query, config);
+  flood_peers_query(config->peer, query, config);
   /* allocated in filter_chunkfile function */
   free(chunkfile);
   free(query);
@@ -496,6 +522,12 @@ void handle_user_input(char *line, void *cbdata, bt_config_t *config, vector *ih
   }
 }
 
+/*
+ * peers_t *peers: a pointer to all peers
+ * int idx: the index of the queries peer
+ *
+ * given a peer index, this function will return the information about that peer
+ */
 peer_info_t *get_peer_info(peers_t *peers, int idx){
   peer_info_t *p;
   for (int i = 0; i < peers->peer.len ;i++){
@@ -535,6 +567,9 @@ void release_all_peers(bt_config_t *config){
   for (int i = 0; i < config->peer->peer.len; i++){
     free(vec_get(&config->peer->peer, i));
   }
+  free(config->peer);
+
+  return;
 }
 
 /*
@@ -584,6 +619,11 @@ void peer_run(bt_config_t *config) {
     exit(-1);
   }
 
+  /* peers will remain unchanged, load them at the beginning */
+  if (load_peers(config) == NULL){
+    fprintf(stderr, "Error loading peers from peer file \n");
+    exit(1);
+  }
   spiffy_init(config->identity, (struct sockaddr *)&myaddr, sizeof(myaddr));
 
   while (1) {
@@ -607,5 +647,4 @@ void peer_run(bt_config_t *config) {
 
   /* try to avoid double release */
   release_all_peers(config);
-  release_all_timers(config);
 }

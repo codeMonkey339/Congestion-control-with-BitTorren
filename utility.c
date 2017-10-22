@@ -48,6 +48,15 @@ void vec_insert_at(vector *vec, void *ele, int idx){
 
 }
 
+
+/*
+ * checks whether element ele is contained within vec
+ */
+void *vec_contains(vector *vec, void *ele){
+
+  return NULL;
+}
+
 int read_from_sock(int sock, char *buf, int BUFLEN){
   int len = 0;
   if ((len == read_from_sock(sock, buf, BUFLEN)) < 0){
