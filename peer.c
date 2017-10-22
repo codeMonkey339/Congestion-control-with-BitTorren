@@ -387,19 +387,23 @@ char *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num){
  */
 peers_t *load_peers(bt_config_t *config){
   FILE *f;
-  char *line = NULL, *token, *next_space;
+  char *line = NULL, *token, line_backup[100];
   size_t line_len;
   char *peer_list_file = config->peer_list_file;
   short peer_id;
-  peers_t *peers = config->peer;
+  peers_t *peers = (peers_t*)malloc(sizeof(peers_t));
+  config->peer = peers;
   init_vector(&config->ihave_msgs, sizeof(ihave_t));
+  init_vector(&peers->peer, sizeof(peer_info_t));
   if ((f = fopen(peer_list_file, "r")) == NULL){
     fprintf(stderr, "Failed to open peer_list_file %s\n", peer_list_file);
     return NULL;
   }
 
   while(getline(&line, &line_len, f) != -1){
-    token = strtok(line, " ");
+    memset(line_backup, 0, 100);
+    strcpy(line_backup, line);
+    token = strtok(line_backup, " ");
     peer_id = atoi(token); /* any *token has to be a char */
     /*
       format of the peer info
@@ -409,9 +413,7 @@ peers_t *load_peers(bt_config_t *config){
       peer_info_t *peer = (peer_info_t*)malloc(sizeof(peer_info_t));
       peer->id = peer_id;
       token = strtok(NULL, " ");
-      next_space = strchr(token, ' ');
-      strncpy(peer->ip, token, next_space - token);
-      strcat(peer->ip, "\0");
+      strcpy(peer->ip, token);
       token = strtok(NULL, " ");
       peer->port = atoi(token);
       vec_add(&peers->peer, peer);
@@ -421,6 +423,9 @@ peers_t *load_peers(bt_config_t *config){
     }else{
       // comment line, do nothing here
     }
+    free(line);
+    line = NULL;
+    line_len = 0;
   }
   config->peer = peers;
   return peers;
