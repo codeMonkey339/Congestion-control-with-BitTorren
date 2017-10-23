@@ -14,6 +14,6 @@
 #define _RELIABLE_UDP_H
 
 
-void send_udp_packet(struct sockaddr_in to, socklen_t tolen, char *msg);
+void send_udp_packet(char *ip, int port, char *msg);
 void send_udp_packet_r(struct sockaddr_in to, socklen_t tolen, char *msg);
 #endif /* _RELIABLE_UDP_H */

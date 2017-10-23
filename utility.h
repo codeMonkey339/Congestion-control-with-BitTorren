@@ -7,6 +7,9 @@
 #define DEFAULT_VEC_SIZE 10
 #define IP_STR_LEN 15
 #define IHAVE_TIMEOUT_TIME 180 /* timeout time is 180s */
+#define PORT_LEN 12
+
+
 typedef struct vector{
   void *val;
   int ele_size;

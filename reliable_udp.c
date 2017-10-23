@@ -2,20 +2,39 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <stdio.h>
+#include "utility.h"
+#include <string.h>
+#include <netdb.h>
+#include <stdlib.h>
+#include <errno.h>
 
 /*
- * struct sockaddr_in to: a struct containing the destination address
- * of the udp packet
- *
- * socklen_t tolen: the length of the struct sockaddr_in. Different
- * sockaddr struct will have different length
- *
  * char *msg: the message to send to destination address
  *
  * send a message through udp procotol
  */
-void send_udp_packet(struct sockaddr_in to, socklen_t tolen, char *msg){
-
-  fprintf(stdout, "sending a udp packet unreliably \n");
-  return;
+void send_udp_packet(char *ip, int port_no, char *msg){
+    char port[PORT_LEN];
+    struct addrinfo hints, *res = NULL;
+    int sock;
+    memset(&hints, 0, sizeof(hints));
+    memset(port, 0, PORT_LEN);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_protocol = 0;
+    sprintf(port, "%d", port_no);
+    int err = getaddrinfo(ip, port, &hints, &res);
+    if (err != 0){
+      fprintf(stderr, "Failed to resolve remote socket address (err = %d)", err);
+      exit(-1);
+    }
+    if ((sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) == -1){
+      fprintf(stderr, "Failed to create the UDP socket");
+      exit(-1);
+    }
+    if (sendto(sock, msg, sizeof(msg), 0, res->ai_addr, res->ai_addrlen) == -1){
+      fprintf(stderr, "Failed to send UDP data (err = %s) \n", strerror(errno));
+      exit(-1);
+    }
+    return;
 }

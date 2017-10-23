@@ -24,6 +24,8 @@
 #include "utility.h"
 #include <ctype.h>
 #include "reliable_udp.h"
+#include <netdb.h>
+#include <errno.h>
 
 
 
@@ -135,7 +137,7 @@ char *build_ihave_reply(char *reply, int num){
  */
 void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config){
   FILE *f;
-  char *token, *reply = (char*)malloc(BUFLEN);
+  char *token, *reply = (char*)malloc(BUFLEN), ip[IP_STR_LEN];
   vector v;
   int chunks_num, reply_len = 0, hash_len = 0, buf_size = BUFLEN, has_num = 0;
   if ((f = fopen(config->has_chunk_file, "r")) == NULL){
@@ -168,8 +170,10 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
   }
  
   char *reply_msg = build_ihave_reply(reply, has_num);
+  memset(ip, 0, IP_STR_LEN);
+  sprintf(ip, "%d", from.sin_addr.s_addr);
   /* if contains no chunks, reply with an empty list of chunks */
-  send_udp_packet(from, fromlen, reply_msg);
+  send_udp_packet(ip, from.sin_port, reply_msg);
   free(reply);
   free(reply_msg);
   return;
@@ -449,9 +453,8 @@ char *build_query(char *chunkfile, int chunks_num){
 void flood_peers_query(peers_t *peers, char *query, bt_config_t *config){
   init_vector(&config->whohas_timers, sizeof(timer));
   for (int i = 0; i < peers->peer.len; i++){
-    //todo: need to send the flood the message to all peers
-
-    
+    peer_info_t *peer = (peer_info_t*)vec_get(&peers->peer, i);
+    send_udp_packet(peer->ip, peer->port, query);
     clock_t start = clock();
     timer *t = (timer*)malloc(sizeof(timer));
     t->start = start;
