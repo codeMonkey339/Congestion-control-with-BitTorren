@@ -31,7 +31,7 @@
 
 
 #define DEFAULT_CHUNK_SIZE 10
-#define CHUNK_HASH_SIZE 45
+#define CHUNK_HASH_SIZE 45 * sizeof(char)
 
 
 void peer_run(bt_config_t *config);
@@ -146,18 +146,17 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
     fprintf(stderr, "Error opening the has_chunk_file %s\n", config->has_chunk_file);
     exit(1);
   }
-  init_vector(&v, DEFAULT_CHUNK_SIZE);
+  init_vector(&v, CHUNK_HASH_SIZE);
   read_chunk(f, &v);
-  /* todo: maybe this api needs to be changed */
-  read_from_sock(sock, buf, BUFLEN);
   token = strtok(buf, " ");
   token = strtok(NULL, " ");
-  chunks_num = *token;
+  chunks_num = atoi(token);
   
   while(chunks_num-- > 0){
     token = strtok(NULL, " "); /* get a new chunk hash, token is null terminated? */
     for (int i = 0; i < v.len; i++){
-      if (strstr(token, vec_get(&v, i)) != NULL){
+      char *msg = vec_get(&v, i);
+      if (strstr(msg, token) != NULL){
         /* strtok will replace ' ' with '\0' */
         hash_len = strlen(token);
         if ((reply_len + hash_len) >= buf_size){
@@ -342,8 +341,8 @@ char *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num){
   FILE *f1, *f2;
   char *filtered_chunks = (char*)malloc(DEFAULT_CHUNK_SIZE * CHUNK_HASH_SIZE);
   vector v1, v2;
-  init_vector(&v1, DEFAULT_CHUNK_SIZE);
-  init_vector(&v2, DEFAULT_CHUNK_SIZE);
+  init_vector(&v1, CHUNK_HASH_SIZE);
+  init_vector(&v2, CHUNK_HASH_SIZE);
   int filtered_num = 0, filtered_size = DEFAULT_CHUNK_SIZE;
   
   if ((f1 = fopen(chunkfile, "r")) == NULL){
@@ -490,23 +489,11 @@ void process_get(char *chunkfile, char *outputfile, bt_config_t *config, vector 
     2. build a reliable file transfer protocol ontop of UDP
   */
   int chunks_num;
-  config->peer = (peers_t*)malloc(sizeof(peers_t));
-  init_vector(&config->peer->peer, sizeof(peer_info_t));
-
-  init_vector(ihave_msgs, sizeof(ihave_t));
   if ((chunkfile = filter_chunkfile(chunkfile, config->has_chunk_file, &chunks_num)) == NULL){
     fprintf(stderr, "Error filtering chunk files that are in own hash-chunk-file \n");
     exit(1);
   }
-
-  /* initialize ihave msg vector */
-  for (int i = 0; i < config->peer->peer.len; i++){
-    ihave_t *ihave = (ihave_t*)malloc(sizeof(ihave_t*));
-    vec_add(ihave_msgs, ihave);
-  }
-
   char *query = build_query(chunkfile, chunks_num);
-
   flood_peers_query(config->peer, query, config);
   /* allocated in filter_chunkfile function */
   free(chunkfile);

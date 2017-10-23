@@ -32,7 +32,7 @@ void send_udp_packet(char *ip, int port_no, char *msg){
       fprintf(stderr, "Failed to create the UDP socket");
       exit(-1);
     }
-    if (sendto(sock, msg, sizeof(msg), 0, res->ai_addr, res->ai_addrlen) == -1){
+    if (sendto(sock, msg, strlen(msg), 0, res->ai_addr, res->ai_addrlen) == -1){
       fprintf(stderr, "Failed to send UDP data (err = %s) \n", strerror(errno));
       exit(-1);
     }
