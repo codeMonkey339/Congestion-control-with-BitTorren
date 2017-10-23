@@ -72,7 +72,7 @@ void read_chunk(FILE *f, vector *v){
 
   while(getline(&line, &line_len, f) != -1){
     token = strtok(line, " ");
-    if (isdigit(token)){
+    if (isdigit(token[0])){
       token = strtok(NULL, " ");
       vec_add(v, token);
     }else{
@@ -80,6 +80,8 @@ void read_chunk(FILE *f, vector *v){
       fprintf(stdout, "Comment line in chunk file\n");
     }
     free(line); // memory is dynamically allocated in getline
+    line = NULL;
+    line_len = 0;
   }
   return;
 }
