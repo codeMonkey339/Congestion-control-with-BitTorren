@@ -109,6 +109,7 @@ void release_all_dynamic_memory(bt_config_t *config){
     for (int j = 0; j < ihave->chunk_num; j++){
       free(ihave->chunks[j]);
     }
+    free(ihave->chunks);
     free(ihave);
   }
 
@@ -123,7 +124,7 @@ void release_all_dynamic_memory(bt_config_t *config){
  * todo: the reply_builder could be made more general
  */
 char *build_ihave_reply(char *reply, int num){
-  char *res = (char*)malloc(sizeof(reply) + sizeof(num) + strlen("ihave") + 3);
+  char *res = (char*)malloc(strlen(reply) + sizeof(num) + strlen("ihave") + 3);
   strcat(res, "IHAVE ");
   sprintf(res + strlen(res), "%d ", num);
   strcat(res, reply);
@@ -141,7 +142,7 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
   FILE *f;
   char *token, *reply = (char*)malloc(BUFLEN), ip[IP_STR_LEN];
   vector v;
-  int chunks_num, reply_len = 0, hash_len = 0, buf_size = BUFLEN, has_num = 0;
+  int chunks_num, reply_len = 0, hash_len = 0, buf_size = BUFLEN, has_num = 0, port;
   if ((f = fopen(config->has_chunk_file, "r")) == NULL){
     fprintf(stderr, "Error opening the has_chunk_file %s\n", config->has_chunk_file);
     exit(1);
@@ -172,9 +173,10 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
  
   char *reply_msg = build_ihave_reply(reply, has_num);
   memset(ip, 0, IP_STR_LEN);
-  sprintf(ip, "%d", from.sin_addr.s_addr);
+  inet_ntop(AF_INET, &(from.sin_addr), ip, IP_STR_LEN);
+  port = ntohs(from.sin_port);
   /* if contains no chunks, reply with an empty list of chunks */
-  send_udp_packet(ip, from.sin_port, reply_msg);
+  send_udp_packet_with_sock(ip, port, reply_msg, config->mysock);
   free(reply);
   free(reply_msg);
   return;
@@ -237,26 +239,30 @@ void remove_timer(vector *cur_timer, int idx){
  */
 void process_ihave(int sock, char *buf, struct sockaddr_in from,
                    socklen_t fromlen, int BUFLEN, bt_config_t *config, vector *ihave_msgs){
-  char *token, *ip, peer_idx, *next_space;
+  char *token, *ip, peer_idx, *next_space, *buf_backup;
   int ihave_nums;
-
+  
   ip = inet_ntoa(from.sin_addr);
   /* get the peer_id of the incoming packet */
   for (int i = 0; i < config->peer->peer.len; i++){
-    if (!strcmp(ip, ((peer_info_t*)vec_get(&config->peer->peer, i))->ip)){
-      peer_idx = i;
+    peer_info_t *peer = (peer_info_t*)vec_get(&config->peer->peer, i);
+    if (!strcmp(ip, peer->ip)){
+      peer_idx = peer->id;
       break;
     }
   }
-
+  
   /* parse the IHAVE reply message */
+  buf_backup = (char*)malloc(strlen(buf) + 1);
+  strcpy(buf_backup, buf);
   token = strtok(buf, " ");
   token = strtok(NULL, " ");
   ihave_nums = atoi(token);
   ihave_t *ihave = (ihave_t*)malloc(sizeof(ihave_t));
   ihave->chunk_num = ihave_nums;
-  ihave->msg = (char*)malloc(strlen(buf) + 1);
-  strcpy(ihave->msg, buf);
+  ihave->msg = (char*)malloc(strlen(buf_backup) + 1);
+  strcpy(ihave->msg, buf_backup);
+  ihave->chunks = (char**)malloc(sizeof(char*) * ihave_nums);
   for (int i = 0; i < ihave_nums; i++){
     token = strtok(NULL, " ");
     ihave->chunks[i] = (char*)malloc(strlen(token) + 1);
@@ -268,6 +274,7 @@ void process_ihave(int sock, char *buf, struct sockaddr_in from,
   if (ihave_msgs->len == config->peer->peer.len){
     send_get_queries(config, ihave_msgs);
   }
+  free(buf_backup);
   return;
 }
 
@@ -455,7 +462,7 @@ void flood_peers_query(peers_t *peers, char *query, bt_config_t *config){
   init_vector(&config->whohas_timers, sizeof(timer));
   for (int i = 0; i < peers->peer.len; i++){
     peer_info_t *peer = (peer_info_t*)vec_get(&peers->peer, i);
-    send_udp_packet(peer->ip, peer->port, query);
+    send_udp_packet_with_sock(peer->ip, peer->port, query, config->mysock);
     clock_t start = clock();
     timer *t = (timer*)malloc(sizeof(timer));
     t->start = start;
@@ -627,13 +634,14 @@ void peer_run(bt_config_t *config) {
     exit(-1);
   }
 
+  config->mysock = sock;
   /* peers will remain unchanged, load them at the beginning */
   if (load_peers(config) == NULL){
     fprintf(stderr, "Error loading peers from peer file \n");
     exit(1);
   }
   spiffy_init(config->identity, (struct sockaddr *)&myaddr, sizeof(myaddr));
-
+  
   while (1) {
     int nfds;
     FD_SET(STDIN_FILENO, &readfds);
