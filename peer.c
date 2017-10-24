@@ -31,7 +31,9 @@
 
 
 #define DEFAULT_CHUNK_SIZE 10
+/* Chunk hashes have a fixed length of 20 bytes */
 #define CHUNK_HASH_SIZE 45 * sizeof(char)
+//#define CHUNK_HASH_SIZE 20 /* keep hash in string format */
 
 
 void peer_run(bt_config_t *config);
@@ -138,6 +140,10 @@ char *build_ihave_reply(char *reply, int num){
  * check whether the chunks exist in itw own has_chunk_file, if so
  * then replies the IHAVE message, otherwise there is no reply
  *
+ * Assume the maximum packet size for UDP is 1500 bytes. The peer must
+ * split the list into multiple WHOHAS queries if the list is too
+ * large for a single packet 
+ *
  * the REPLY message is in the format: "IHAVE 2 000...015 0000...00441"
  */
 void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config){
@@ -233,6 +239,7 @@ void remove_timer(vector *cur_timer, int idx){
  *
  *  BitTorrent uses a "rarest-chunk-first" heuristic where it tries to
  *  fetch the rarest chunk first.
+ *
  *
  *  format of the IHAVE message: "IHAVE 2 0000...015 0000..00441"
  *
