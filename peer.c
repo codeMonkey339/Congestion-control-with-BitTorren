@@ -124,7 +124,9 @@ void release_all_dynamic_memory(bt_config_t *config){
  * todo: the reply_builder could be made more general
  */
 char *build_ihave_reply(char *reply, int num){
-  char *res = (char*)malloc(strlen(reply) + sizeof(num) + strlen("ihave") + 3);
+  int buf_len = strlen(reply) + sizeof(num) + strlen("ihave") + 3;
+  char *res = (char*)malloc(buf_len);
+  memset(res, 0, buf_len);
   strcat(res, "IHAVE ");
   sprintf(res + strlen(res), "%d ", num);
   strcat(res, reply);
@@ -152,6 +154,7 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
   token = strtok(buf, " ");
   token = strtok(NULL, " ");
   chunks_num = atoi(token);
+  memset(reply, 0, BUFLEN);
   
   while(chunks_num-- > 0){
     token = strtok(NULL, " "); /* get a new chunk hash, token is null terminated? */
@@ -305,6 +308,7 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
   socklen_t fromlen;
   char buf[BUFLEN], buf_backup[BUFLEN], * token;
 
+  memset(buf, 0, BUFLEN);
   fromlen = sizeof(from);
   /* read from available socket into buf, don't care about
      reliability here */
@@ -447,7 +451,9 @@ peers_t *load_peers(bt_config_t *config){
  * query example: WHOHAS 2 000...015 0000..00441
  */
 char *build_query(char *chunkfile, int chunks_num){
-  char *query = (char*)malloc(strlen(chunkfile) + sizeof(int) + strlen("WHOHAS") + 3);
+  int buf_len = strlen(chunkfile) + sizeof(int) + strlen("WHOHAS") + 3;
+  char *query = (char*)malloc(buf_len);
+  memset(query, 0, buf_len);
   strcat(query, "WHOHAS ");
   sprintf(query + strlen(query), "%d ", chunks_num);
   strcat(query, chunkfile);
