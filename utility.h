@@ -8,7 +8,7 @@
 #define IP_STR_LEN 15
 #define IHAVE_TIMEOUT_TIME 180 /* timeout time is 180s */
 #define PORT_LEN 12
-
+#define UDP_MAX_PACK_SIZE 1500 /* maximum udp packet size */
 
 
 typedef struct vector{

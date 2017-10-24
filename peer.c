@@ -350,15 +350,25 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
  * char *has_chunk_file: a filename pointing to a file containing
  * chunks to owned by current peer
  *
- * return char *: filtered chunk hashes in the format "hash hash hash ..."
+ * return char *: filtered chunk hashes in the format "hash hash hash
+ * ..."
+ * note: better save filtered chunks in a vector in case multiple
+ * messages need to be built out of it
  *
  * given a chunkfile and current peer's has_chunk_file, only keep
  * those chunks in chunkfile that are not in has_chunk_file
  */
-char *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num){
+vector *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num){
   FILE *f1, *f2;
   char *filtered_chunks = (char*)malloc(DEFAULT_CHUNK_SIZE * CHUNK_HASH_SIZE);
   vector v1, v2;
+  vector *res = NULL;
+  if ((res = (vector*)malloc(sizeof(vector))) == NULL){
+    fprintf(stderr, "Failed to allocate memory for a new vector \n");
+    return NULL;
+  }
+  init_vector(res, CHUNK_HASH_SIZE);
+  //todo: change impl
   init_vector(&v1, CHUNK_HASH_SIZE);
   init_vector(&v2, CHUNK_HASH_SIZE);
   int filtered_num = 0, filtered_size = DEFAULT_CHUNK_SIZE;
@@ -396,6 +406,7 @@ char *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num){
     }
   }
   *chunks_num = filtered_num;
+  //todo: free dynamically allocated vectors & their elements
   return filtered_chunks;
 }
 
@@ -457,7 +468,8 @@ peers_t *load_peers(bt_config_t *config){
 /*
  * query example: WHOHAS 2 000...015 0000..00441
  */
-char *build_query(char *chunkfile, int chunks_num){
+vector *build_query(char *chunkfile, int chunks_num){
+  //todo: need to change from single element to a vector
   int buf_len = strlen(chunkfile) + sizeof(int) + strlen("WHOHAS") + 3;
   char *query = (char*)malloc(buf_len);
   memset(query, 0, buf_len);
@@ -509,15 +521,16 @@ void process_get(char *chunkfile, char *outputfile, bt_config_t *config, vector 
     2. build a reliable file transfer protocol ontop of UDP
   */
   int chunks_num;
-  if ((chunkfile = filter_chunkfile(chunkfile, config->has_chunk_file, &chunks_num)) == NULL){
+  vector *filtered_chunks;
+  if ((filtered_chunks = filter_chunkfile(chunkfile, config->has_chunk_file, &chunks_num)) == NULL){
     fprintf(stderr, "Error filtering chunk files that are in own hash-chunk-file \n");
     exit(1);
   }
-  char *query = build_query(chunkfile, chunks_num);
+  vector *query = build_query(filtered_chunks, chunks_num);
   flood_peers_query(config->peer, query, config);
   /* allocated in filter_chunkfile function */
-  free(chunkfile);
   free(query);
+  //todo: free vector elements here, filtered_chunks, query
   return;
 }
 
