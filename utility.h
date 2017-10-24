@@ -51,5 +51,6 @@ void init_vector(vector *vec, int ele_size);
 void vec_add(vector *vec, void *ele);
 void *vec_get(vector *vec, int idx);
 void vec_insert_at(vector *vec, void *ele, int idx);
+void vec_free(vector *vec);
 int read_from_sock(int sock, char *buf, int BUFLEN);
 #endif

@@ -35,6 +35,8 @@
 #define CHUNK_HASH_SIZE 45 * sizeof(char)
 //#define CHUNK_HASH_SIZE 20 /* keep hash in string format */
 
+#define CHUNK_NUM_PER_PACK ((UDP_MAX_PACK_SIZE - strlen("whohas") - sizeof(int)) / CHUNK_HASH_SIZE)
+
 
 void peer_run(bt_config_t *config);
 
@@ -360,18 +362,17 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
  */
 vector *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num){
   FILE *f1, *f2;
-  char *filtered_chunks = (char*)malloc(DEFAULT_CHUNK_SIZE * CHUNK_HASH_SIZE);
   vector v1, v2;
   vector *res = NULL;
   if ((res = (vector*)malloc(sizeof(vector))) == NULL){
     fprintf(stderr, "Failed to allocate memory for a new vector \n");
     return NULL;
   }
+  memset(res, 0, sizeof(vector));
   init_vector(res, CHUNK_HASH_SIZE);
   //todo: change impl
   init_vector(&v1, CHUNK_HASH_SIZE);
   init_vector(&v2, CHUNK_HASH_SIZE);
-  int filtered_num = 0, filtered_size = DEFAULT_CHUNK_SIZE;
   
   if ((f1 = fopen(chunkfile, "r")) == NULL){
     fprintf(stderr, "Error opening chunkfile %s \n", chunkfile);
@@ -395,19 +396,17 @@ vector *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num)
       }
     }
     if (!own){
-      /* strncat will overwrite the terminating null byte at the end
-         of dest, and then appends a terminating null byte */
-      strcat(filtered_chunks, str_i);
-      strcat(filtered_chunks, " ");
-      if (++filtered_num > filtered_size){
-        filtered_chunks = realloc(filtered_chunks, filtered_size * CHUNK_HASH_SIZE * 2);
-        filtered_size *= 2;
-      }
+      vec_add(res, str_i);
     }
   }
-  *chunks_num = filtered_num;
-  //todo: free dynamically allocated vectors & their elements
-  return filtered_chunks;
+  *chunks_num = res->len;
+  vec_free(&v1);
+  vec_free(&v2);
+  /* for (int i = 0; i < res->len; i++){ */
+  /*   fprintf(stdout, "%d %s", i, (char*)vec_get(res, i)); */
+  /*   fprintf(stdout, "\n"); */
+  /* } */
+  return res;
 }
 
 
@@ -468,34 +467,49 @@ peers_t *load_peers(bt_config_t *config){
 /*
  * query example: WHOHAS 2 000...015 0000..00441
  */
-vector *build_query(char *chunkfile, int chunks_num){
-  //todo: need to change from single element to a vector
-  int buf_len = strlen(chunkfile) + sizeof(int) + strlen("WHOHAS") + 3;
-  char *query = (char*)malloc(buf_len);
-  memset(query, 0, buf_len);
-  strcat(query, "WHOHAS ");
-  sprintf(query + strlen(query), "%d ", chunks_num);
-  strcat(query, chunkfile);
-  return query;
+vector *build_query(vector *filtered_chunks, unsigned int chunks_num){
+  vector *res = (vector*)malloc(sizeof(vector));
+  init_vector(res, CHUNK_HASH_SIZE);
+  int cnt = 0;
+
+  while(chunks_num > 0){
+    int num = CHUNK_NUM_PER_PACK > chunks_num?chunks_num:CHUNK_NUM_PER_PACK;
+    int buf_len = strlen("whohas") + sizeof(int) + num * CHUNK_HASH_SIZE + 2;
+    char *query = (char*)malloc(buf_len);
+    memset(query, 0, buf_len);
+    strcat(query, "WHOHAS ");
+    sprintf(query + strlen(query), "%d ", num);
+    for (int i = 0; i < num; i++){
+      char *hash = vec_get(filtered_chunks, cnt++);
+      strcat(query, hash);
+    }
+    vec_add(res, query);
+    chunks_num -= num;
+  }
+  
+  return res;
 }
 
 /*
  * peers_t peers: contains a list of peers info
  * char *query: the query info to flood to peers
  */
-void flood_peers_query(peers_t *peers, char *query, bt_config_t *config){
+void flood_peers_query(peers_t *peers, vector *queries, bt_config_t *config){
   init_vector(&config->whohas_timers, sizeof(timer));
-  for (int i = 0; i < peers->peer.len; i++){
-    peer_info_t *peer = (peer_info_t*)vec_get(&peers->peer, i);
-    send_udp_packet_with_sock(peer->ip, peer->port, query, config->mysock);
-    clock_t start = clock();
-    timer *t = (timer*)malloc(sizeof(timer));
-    t->start = start;
-    t->repeat_times = 0;
-    t->peer_id = ((peer_info_t*)vec_get(&peers->peer,i))->id;
-    t->msg = (char*)malloc(strlen(query) + 1);
-    strcpy(t->msg, query);
-    vec_add(&config->whohas_timers, t);
+  for (int j = 0; j < queries->len; j++){
+    char *query = (char*)vec_get(queries, j);
+    for (int i = 0; i < peers->peer.len; i++){
+      peer_info_t *peer = (peer_info_t*)vec_get(&peers->peer, i);
+      send_udp_packet_with_sock(peer->ip, peer->port, query, config->mysock);
+      clock_t start = clock();
+      timer *t = (timer*)malloc(sizeof(timer));
+      t->start = start;
+      t->repeat_times = 0;
+      t->peer_id = ((peer_info_t*)vec_get(&peers->peer,i))->id;
+      t->msg = (char*)malloc(strlen(query) + 1);
+      strcpy(t->msg, query);
+      vec_add(&config->whohas_timers, t);
+    }
   }
 
   return;
@@ -516,10 +530,6 @@ void flood_peers_query(peers_t *peers, char *query, bt_config_t *config){
 
 */
 void process_get(char *chunkfile, char *outputfile, bt_config_t *config, vector *ihave_msgs) {
-  /*
-    todos:
-    2. build a reliable file transfer protocol ontop of UDP
-  */
   int chunks_num;
   vector *filtered_chunks;
   if ((filtered_chunks = filter_chunkfile(chunkfile, config->has_chunk_file, &chunks_num)) == NULL){
@@ -529,8 +539,10 @@ void process_get(char *chunkfile, char *outputfile, bt_config_t *config, vector 
   vector *query = build_query(filtered_chunks, chunks_num);
   flood_peers_query(config->peer, query, config);
   /* allocated in filter_chunkfile function */
+  vec_free(query);
   free(query);
-  //todo: free vector elements here, filtered_chunks, query
+  vec_free(filtered_chunks);
+  free(filtered_chunks);
   return;
 }
 

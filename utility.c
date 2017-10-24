@@ -37,6 +37,11 @@ void *vec_get(vector *vec, int idx){
 }
 
 
+void vec_free(vector *vec){
+  free(vec->val);
+  return;
+}
+
 /*
  * vector *vec: the vector pointer
  * void *ele: pointer to the vector element
