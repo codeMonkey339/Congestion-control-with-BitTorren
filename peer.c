@@ -26,6 +26,7 @@
 #include "reliable_udp.h"
 #include <netdb.h>
 #include <errno.h>
+#include "packet.h"
 
 
 
@@ -65,6 +66,53 @@ int main(int argc, char **argv) {
   return 0;
 }
 
+
+packet_h * parse_packet(char **buf){
+  char *start = *buf;
+  packet_h *header = (packet_h*)malloc(sizeof(packet_h));
+  header->magicNo = ntohs(*(uint16_t*)start);
+  header->versionNo = *(uint8_t*)(start + 2);
+  header->packType = *(uint8_t*)(start + 3);
+  header->headerLen = ntohs(*(uint16_t*)(start + 4));
+  header->packLen = ntohs(*(uint16_t*)(start + 6));
+  header->seqNo = ntohl(*(uint32_t*)(start + 8));
+  header->ackNo = ntohl(*(uint32_t*)(start + 12));
+  if (header->magicNo != 15441 || header->versionNo != 1){
+    return NULL;
+  }
+  //todo: possible extension of packet header
+  *buf = start + header->packLen;
+  return header;
+}
+
+
+/*
+ * packet_h *header: the packet header
+ * char *query: the packet body
+ *
+ * given the packet header & packet body, send the packet to recipient
+ */
+void send_packet(char *ip, int port, packet_h *header, char *query, int mysock){
+  char *msg = (char*)malloc(header->packLen + strlen(query));
+  /* there is no endian problem for a single byte */
+  uint16_t magicNo = htons(header->magicNo);
+  uint16_t headerLen = htons(header->headerLen);
+  uint16_t packLen = htons(header->packLen);
+  uint32_t seqNo = htonl(header->seqNo);
+  uint32_t ackNo = htonl(header->ackNo);
+  memcpy(msg, &magicNo, 2);
+  memcpy(msg + 2, &header->versionNo , 1);
+  memcpy(msg + 3, &header->packType, 1);
+  memcpy(msg + 4, &headerLen, 2);
+  memcpy(msg + 6, &packLen, 2);
+  memcpy(msg + 8, &seqNo, 4);
+  memcpy(msg + 12, &ackNo, 4);
+  //todo: possibly there are extended headers
+  memcpy(msg + header->packLen, query, strlen(query));
+  send_udp_packet_with_sock(ip, port, msg, mysock);
+  free(msg);
+  return;
+}
 
 /*
  * FILE *f: file pointer to file which will be read from
@@ -159,6 +207,7 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
   }
   init_vector(&v, CHUNK_HASH_SIZE);
   read_chunk(f, &v);
+  packet_h *header = parse_packet(&buf);
   token = strtok(buf, " ");
   token = strtok(NULL, " ");
   chunks_num = atoi(token);
@@ -181,7 +230,6 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
       }
     }
   }
- 
   char *reply_msg = build_ihave_reply(reply, has_num);
   memset(ip, 0, IP_STR_LEN);
   inet_ntop(AF_INET, &(from.sin_addr), ip, IP_STR_LEN);
@@ -190,6 +238,7 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
   send_udp_packet_with_sock(ip, port, reply_msg, config->mysock);
   free(reply);
   free(reply_msg);
+  free(header);
   return;
 }
 
@@ -498,9 +547,18 @@ void flood_peers_query(peers_t *peers, vector *queries, bt_config_t *config){
   init_vector(&config->whohas_timers, sizeof(timer));
   for (int j = 0; j < queries->len; j++){
     char *query = (char*)vec_get(queries, j);
+    packet_h header;
+    header.magicNo = 15441;
+    header.versionNo = 1;
+    header.packType = 1;
+    header.headerLen = PACK_HEADER_BASE_LEN;
+    header.packLen = PACK_HEADER_BASE_LEN + strlen(query);
+    /* not used in non-data packets */
+    header.seqNo = 0;
+    header.ackNo = 0;
     for (int i = 0; i < peers->peer.len; i++){
       peer_info_t *peer = (peer_info_t*)vec_get(&peers->peer, i);
-      send_udp_packet_with_sock(peer->ip, peer->port, query, config->mysock);
+      send_packet(peer->ip, peer->port, &header, query, config->mysock);
       clock_t start = clock();
       timer *t = (timer*)malloc(sizeof(timer));
       t->start = start;
