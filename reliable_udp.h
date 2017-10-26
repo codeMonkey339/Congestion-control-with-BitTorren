@@ -15,6 +15,6 @@
 
 
 void send_udp_packet(char *ip, int port, char *msg);
-void send_udp_packet_with_sock(char *ip, int port_no, char *msg, int sock);
+void send_udp_packet_with_sock(char *ip, int port_no, char *msg, int sock, int size);
 void send_udp_packet_r(struct sockaddr_in to, socklen_t tolen, char *msg);
 #endif /* _RELIABLE_UDP_H */

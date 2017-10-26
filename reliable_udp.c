@@ -40,7 +40,7 @@ void send_udp_packet(char *ip, int port_no, char *msg){
 }
 
 
-void send_udp_packet_with_sock(char *ip, int port_no, char *msg, int sock){
+void send_udp_packet_with_sock(char *ip, int port_no, char *msg, int sock, int size){
     char port[PORT_LEN];
     struct addrinfo hints, *res = NULL;
     memset(&hints, 0, sizeof(hints));
@@ -54,7 +54,7 @@ void send_udp_packet_with_sock(char *ip, int port_no, char *msg, int sock){
       fprintf(stderr, "Failed to resolve remote socket address (err = %d)", err);
       exit(-1);
     }
-    if (sendto(sock, msg, strlen(msg), 0, res->ai_addr, res->ai_addrlen) == -1){
+    if (sendto(sock, msg, size, 0, res->ai_addr, res->ai_addrlen) == -1){
       fprintf(stderr, "Failed to send UDP data (err = %s) \n", strerror(errno));
       exit(-1);
     }

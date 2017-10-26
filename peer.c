@@ -81,7 +81,7 @@ packet_h * parse_packet(char **buf){
     return NULL;
   }
   //todo: possible extension of packet header
-  *buf = start + header->packLen;
+  *buf = start + header->headerLen;
   return header;
 }
 
@@ -109,7 +109,7 @@ void send_packet(char *ip, int port, packet_h *header, char *query, int mysock){
   memcpy(msg + 12, &ackNo, 4);
   //todo: possibly there are extended headers
   memcpy(msg + header->headerLen, query, strlen(query));
-  send_udp_packet_with_sock(ip, port, msg, mysock);
+  send_udp_packet_with_sock(ip, port, msg, mysock, header->packLen + strlen(query));
   free(msg);
   return;
 }
@@ -126,6 +126,9 @@ void read_chunk(FILE *f, vector *v){
     token = strtok(line, " ");
     if (isdigit(token[0])){
       token = strtok(NULL, " ");
+      if (token[strlen(token) -1] == '\n'){
+        token[strlen(token) -1] = '\0';
+      }
       vec_add(v, token);
     }else{
       /* skip the current line */
@@ -197,6 +200,7 @@ char *build_ihave_reply(char *reply, int num){
  * the REPLY message is in the format: "IHAVE 2 000...015 0000...00441"
  */
 void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config, packet_h *header){
+  //todo: need to send message correctly
   FILE *f;
   char *token, *reply = (char*)malloc(BUFLEN), ip[IP_STR_LEN];
   vector v;
@@ -235,7 +239,7 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
   inet_ntop(AF_INET, &(from.sin_addr), ip, IP_STR_LEN);
   port = ntohs(from.sin_port);
   /* if contains no chunks, reply with an empty list of chunks */
-  send_udp_packet_with_sock(ip, port, reply_msg, config->mysock);
+  send_udp_packet_with_sock(ip, port, reply_msg, config->mysock, strlen(reply_msg));
   free(reply);
   free(reply_msg);
   free(header);
@@ -367,24 +371,25 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
   struct sockaddr_in from;
   socklen_t fromlen;
   char buf[BUFLEN], *buf_backup, * token;
+  int recv_size = 0;
 
   memset(buf, 0, BUFLEN);
   fromlen = sizeof(from);
   /* read from available socket into buf, don't care about
      reliability here */
-  spiffy_recvfrom(sock, buf, BUFLEN, 0, (struct sockaddr *) &from, &fromlen);
+  recv_size = spiffy_recvfrom(sock, buf, BUFLEN, 0, (struct sockaddr *) &from, &fromlen);
   if ((buf_backup = (char*)malloc(BUFLEN)) == NULL){
     fprintf(stderr, "malloc failed in process_inbound_upd\n");
     return;
   }
-  strcpy(buf_backup, buf);
+  memcpy(buf_backup, buf, BUFLEN);
   packet_h* header = parse_packet(&buf_backup);
   if (header->packType == 0){
-    process_whohas(sock, buf_backup, from, fromlen, BUFLEN, config, header);
+    process_whohas(sock, buf + header->headerLen, from, fromlen, BUFLEN, config, header);
   }else if (header->packType == 1){
-    process_ihave(sock, buf_backup, from, fromlen, BUFLEN, config, ihave_msgs, header);
+    process_ihave(sock, buf + header->headerLen, from, fromlen, BUFLEN, config, ihave_msgs, header);
   }else if (header->packType == 2){
-    process_peer_get(sock, buf_backup, from, fromlen, BUFLEN, config, header);
+    process_peer_get(sock, buf + header->headerLen, from, fromlen, BUFLEN, config, header);
   }else if (header->packType == 3){
     //todo: process data packet
   }else if (header->packType == 4){
@@ -394,7 +399,8 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
   }else{
     //todo: corrupted message
   }
-  free(buf_backup);
+  //todo: need to release correctly
+  free(buf_backup - header->headerLen);
   free(header);
   /* none of the above matches, corrupted message */
   fprintf(stderr, "Corrupted incoming message from %s: %d\n%s\n\n",
@@ -527,7 +533,7 @@ peers_t *load_peers(bt_config_t *config){
  */
 vector *build_query(vector *filtered_chunks, unsigned int chunks_num){
   vector *res = (vector*)malloc(sizeof(vector));
-  init_vector(res, CHUNK_HASH_SIZE);
+  init_vector(res, UDP_MAX_PACK_SIZE);
   int cnt = 0;
 
   while(chunks_num > 0){
@@ -540,6 +546,9 @@ vector *build_query(vector *filtered_chunks, unsigned int chunks_num){
     for (int i = 0; i < num; i++){
       char *hash = vec_get(filtered_chunks, cnt++);
       strcat(query, hash);
+      if (i != (num - 1)){
+        strcat(query, " ");
+      }
     }
     vec_add(res, query);
     chunks_num -= num;
