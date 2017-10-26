@@ -196,7 +196,8 @@ char *build_ihave_reply(char *reply, int num){
  *
  * the REPLY message is in the format: "IHAVE 2 000...015 0000...00441"
  */
-void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config){
+void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config, packet_h *header){
+  //todo: need to update code after reformat message
   FILE *f;
   char *token, *reply = (char*)malloc(BUFLEN), ip[IP_STR_LEN];
   vector v;
@@ -207,7 +208,6 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
   }
   init_vector(&v, CHUNK_HASH_SIZE);
   read_chunk(f, &v);
-  packet_h *header = parse_packet(&buf);
   token = strtok(buf, " ");
   token = strtok(NULL, " ");
   chunks_num = atoi(token);
@@ -299,7 +299,8 @@ void remove_timer(vector *cur_timer, int idx){
  *
  */
 void process_ihave(int sock, char *buf, struct sockaddr_in from,
-                   socklen_t fromlen, int BUFLEN, bt_config_t *config, vector *ihave_msgs){
+                   socklen_t fromlen, int BUFLEN, bt_config_t *config, vector *ihave_msgs, packet_h *header){
+  //todo: need to update code after reformat message
   char *token, *ip, peer_idx, *next_space, *buf_backup;
   int ihave_nums;
   
@@ -344,7 +345,8 @@ void process_ihave(int sock, char *buf, struct sockaddr_in from,
   what kind of reliable protocol to develop?
  */
 void process_peer_get(int sock, char *buf, struct sockaddr_in from,
-                      socklen_t fromlen, int BUFLEN, bt_config_t *config){
+                      socklen_t fromlen, int BUFLEN, bt_config_t *config, packet_h *header){
+  //todo: need to update code after reformat message
   // 1. open the master hash_chunk_file
   // 2. how to retrieve the chunk based on chunk hash & id???
 
@@ -364,29 +366,36 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
 #define BUFLEN 1500
   struct sockaddr_in from;
   socklen_t fromlen;
-  char buf[BUFLEN], buf_backup[BUFLEN], * token;
+  char buf[BUFLEN], *buf_backup, * token;
 
   memset(buf, 0, BUFLEN);
   fromlen = sizeof(from);
   /* read from available socket into buf, don't care about
      reliability here */
   spiffy_recvfrom(sock, buf, BUFLEN, 0, (struct sockaddr *) &from, &fromlen);
+  if ((buf_backup = (char*)malloc(BUFLEN)) == NULL){
+    fprintf(stderr, "malloc failed in process_inbound_upd\n");
+    return;
+  }
   strcpy(buf_backup, buf);
-  token = strtok(buf_backup, " ");
-  if (!strcasecmp(token, "WHOHAS")){
-    process_whohas(sock, buf, from, fromlen, BUFLEN, config);
-    return;
+  packet_h* header = parse_packet(&buf_backup);
+  if (header->packType == 0){
+    process_whohas(sock, buf, from, fromlen, BUFLEN, config, header);
+  }else if (header->packType == 1){
+    process_ihave(sock, buf, from, fromlen, BUFLEN, config, ihave_msgs, header);
+  }else if (header->packType == 2){
+    process_peer_get(sock, buf, from, fromlen, BUFLEN, config, header);
+  }else if (header->packType == 3){
+    //todo: process data packet
+  }else if (header->packType == 4){
+    //todo: ack packet
+  }else if (header->packType == 5){
+    //todo: denied packet
+  }else{
+    //todo: corrupted message
   }
-  if (!strcasecmp(token, "IHAVE")){
-    process_ihave(sock, buf, from, fromlen, BUFLEN, config, ihave_msgs);
-    return;
-  }
-  if (!strcasecmp(token, "GET")){
-    process_peer_get(sock, buf, from, fromlen, BUFLEN, config);
-    return;
-  }
-  // ack message?
-  
+  free(buf_backup);
+  free(header);
   /* none of the above matches, corrupted message */
   fprintf(stderr, "Corrupted incoming message from %s: %d\n%s\n\n",
           inet_ntoa(from.sin_addr), ntohs(from.sin_port), buf);
