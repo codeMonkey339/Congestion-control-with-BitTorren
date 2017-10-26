@@ -108,7 +108,7 @@ void send_packet(char *ip, int port, packet_h *header, char *query, int mysock){
   memcpy(msg + 8, &seqNo, 4);
   memcpy(msg + 12, &ackNo, 4);
   //todo: possibly there are extended headers
-  memcpy(msg + header->packLen, query, strlen(query));
+  memcpy(msg + header->headerLen, query, strlen(query));
   send_udp_packet_with_sock(ip, port, msg, mysock);
   free(msg);
   return;
@@ -197,7 +197,6 @@ char *build_ihave_reply(char *reply, int num){
  * the REPLY message is in the format: "IHAVE 2 000...015 0000...00441"
  */
 void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config, packet_h *header){
-  //todo: need to update code after reformat message
   FILE *f;
   char *token, *reply = (char*)malloc(BUFLEN), ip[IP_STR_LEN];
   vector v;
@@ -212,7 +211,8 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
   token = strtok(NULL, " ");
   chunks_num = atoi(token);
   memset(reply, 0, BUFLEN);
-  
+
+  /* don't have to use the packet length here, chunks_num is enough */
   while(chunks_num-- > 0){
     token = strtok(NULL, " "); /* get a new chunk hash, token is null terminated? */
     for (int i = 0; i < v.len; i++){
@@ -380,11 +380,11 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
   strcpy(buf_backup, buf);
   packet_h* header = parse_packet(&buf_backup);
   if (header->packType == 0){
-    process_whohas(sock, buf, from, fromlen, BUFLEN, config, header);
+    process_whohas(sock, buf_backup, from, fromlen, BUFLEN, config, header);
   }else if (header->packType == 1){
-    process_ihave(sock, buf, from, fromlen, BUFLEN, config, ihave_msgs, header);
+    process_ihave(sock, buf_backup, from, fromlen, BUFLEN, config, ihave_msgs, header);
   }else if (header->packType == 2){
-    process_peer_get(sock, buf, from, fromlen, BUFLEN, config, header);
+    process_peer_get(sock, buf_backup, from, fromlen, BUFLEN, config, header);
   }else if (header->packType == 3){
     //todo: process data packet
   }else if (header->packType == 4){
@@ -559,7 +559,7 @@ void flood_peers_query(peers_t *peers, vector *queries, bt_config_t *config){
     packet_h header;
     header.magicNo = 15441;
     header.versionNo = 1;
-    header.packType = 1;
+    header.packType = 0;
     header.headerLen = PACK_HEADER_BASE_LEN;
     header.packLen = PACK_HEADER_BASE_LEN + strlen(query);
     /* not used in non-data packets */
