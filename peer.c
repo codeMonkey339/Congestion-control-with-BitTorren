@@ -466,12 +466,62 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
   // 1. open the master hash_chunk_file
   // 1.1 from the masterchunkfile retrieve data
   // 2. how to retrieve the chunk based on chunk hash & id???
-  char *buf_backup = (char*)malloc(strlen(buf) + 1), *token;
+  FILE *f, *f1;
+  char *buf_backup = (char*)malloc(strlen(buf) + 1), *token, *line, masterfile[BT_FILENAME_LEN], *t, line_backup[BT_FILENAME_LEN], filebuf[UDP_MAX_PACK_SIZE];
+  int line_len = 0, chunk_idx, idx, packNo = 1, ackNo;
+  size_t packSize = 0;
+  packet_t header;
   memset(buf_backup, 0, strlen(buf) + 1);
   strcpy(buf_backup, buf);
   token = strtok(buf_backup, " ");
-  token = strtok(NULL, " ");
-  fprintf(stdout, "Servicing peers' request for a certain chunk of  file \n");
+  token = strtok(NULL, " "); /* token pointers to chunk hash */
+
+  if ((f = open(config->chunk_file, "r")) == NULL){
+    fprintf(stderr, "Failed to open chunk file %s\n", config->chunk_file);
+    exit(1);
+  }
+  while(getline(&line, &line_len, f) != -1){
+    memset(line_backup, 0, BT_FILENAME_LEN);
+    strcpy(line_backup, line);
+    t = strtok(line_backup, " ");
+    if (!isdigit(*t)){ /* the first line */
+      t = strtok(NULL, " ");
+      memset(masterfile, 0, BT_FILENAME_LEN);
+      strcpy(masterfile, t);
+      t = strtok(NULL, " "); /* there is a remaining hash line */
+      if (t != NULL){
+        idx = *(int*)t;
+        t = strtock(NULL, " ");
+        if (!strcmp(t, token) || strstr(t, token) != NULL){
+          chunk_idx = idx;
+          free(line);
+          break;
+        }
+      }
+    }else{ /* chunk hash line */
+      idx = *(int*)t;
+      t = strtok(NULL, " ");
+      if (!strcmp(t, token) || strstr(t, token) != NULL){
+        chunk_idx = idx;
+        free(line);
+        break;
+      }
+    }
+    free(line);
+    line = NULL;
+    line_len = 0;
+  }
+  if ((f1 = open(masterfile, "r")) == NULL){
+    fprintf(stderr, "Cannot open master chunk file %s \n", masterfile);
+    exit(1);
+  }
+  fseek(f1, chunk_idx * CHUNK_LEN, SEEK_SET);
+  memset(filebuf, 0, PACK_HEADER_BASE_LEN);
+  while((packSize = fread(filebuf, 1, PACK_HEADER_BASE_LEN, f1)) > 0){
+    build_header(&header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize, packNo, ackNo);
+    // send the packet reliably to and handle return value?
+  }
+
   return;
 }
 
