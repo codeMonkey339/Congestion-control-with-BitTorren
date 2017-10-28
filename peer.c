@@ -85,6 +85,16 @@ packet_h * parse_packet(char **buf){
   return header;
 }
 
+void build_header(packet_h *header, int magicNo, int versionNo, int packType, int headerLen, int packLen, int seqNo, int ackNo){
+  header->magicNo = magicNo;
+  header->versionNo = versionNo;
+  header->packType = packType;
+  header->headerLen = headerLen;
+  header->packLen = packLen;
+  header->seqNo = seqNo;
+  header->ackNo = ackNo;
+  return;
+}
 
 /*
  * packet_h *header: the packet header
@@ -195,7 +205,8 @@ char *build_ihave_reply(char *reply, int num){
  *
  * Assume the maximum packet size for UDP is 1500 bytes. The peer must
  * split the list into multiple WHOHAS queries if the list is too
- * large for a single packet 
+ * large for a single packet. It is assumed that all IHAVE messages
+ * will have sizes less than 1500 byte
  *
  * the REPLY message is in the format: "IHAVE 2 000...015 0000...00441"
  */
@@ -238,8 +249,9 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
   memset(ip, 0, IP_STR_LEN);
   inet_ntop(AF_INET, &(from.sin_addr), ip, IP_STR_LEN);
   port = ntohs(from.sin_port);
-  /* if contains no chunks, reply with an empty list of chunks */
-  send_udp_packet_with_sock(ip, port, reply_msg, config->mysock, strlen(reply_msg));
+  packet_h reply_header;
+  build_header(&reply_header, 15441, 1, 1, PACK_HEADER_BASE_LEN, PACK_HEADER_BASE_LEN + strlen(reply_msg), 0, 0);
+  send_packet(ip, port, &reply_header, reply_msg, config->mysock);
   free(reply);
   free(reply_msg);
   free(header);
@@ -305,6 +317,7 @@ void remove_timer(vector *cur_timer, int idx){
 void process_ihave(int sock, char *buf, struct sockaddr_in from,
                    socklen_t fromlen, int BUFLEN, bt_config_t *config, vector *ihave_msgs, packet_h *header){
   //todo: need to update code after reformat message
+  //todo: what if receive the reply after time out?
   char *token, *ip, peer_idx, *next_space, *buf_backup;
   int ihave_nums;
   
@@ -370,7 +383,7 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
 #define BUFLEN 1500
   struct sockaddr_in from;
   socklen_t fromlen;
-  char buf[BUFLEN], *buf_backup, * token;
+  char buf[BUFLEN], *buf_backup, *token, *buf_backup_ptr;
   int recv_size = 0;
 
   memset(buf, 0, BUFLEN);
@@ -383,6 +396,7 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
     return;
   }
   memcpy(buf_backup, buf, BUFLEN);
+  buf_backup_ptr = buf_backup;
   packet_h* header = parse_packet(&buf_backup);
   if (header->packType == 0){
     process_whohas(sock, buf + header->headerLen, from, fromlen, BUFLEN, config, header);
@@ -400,7 +414,7 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
     //todo: corrupted message
   }
   //todo: need to release correctly
-  free(buf_backup - header->headerLen);
+  free(buf_backup_ptr);
   free(header);
   /* none of the above matches, corrupted message */
   fprintf(stderr, "Corrupted incoming message from %s: %d\n%s\n\n",
