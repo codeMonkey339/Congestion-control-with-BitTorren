@@ -49,6 +49,8 @@ struct bt_config_s {
 
   int argc; 
   char **argv;
+  /* vector storing the chunks that needs to be downloaded */
+  vector desired_chunks;
   /* vector storing all the ihave messages from peers */
   vector ihave_msgs;
   /* peers stored in a self-implemented vector */

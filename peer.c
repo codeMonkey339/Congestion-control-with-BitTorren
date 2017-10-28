@@ -32,8 +32,7 @@
 
 
 #define DEFAULT_CHUNK_SIZE 10
-/* Chunk hashes have a fixed length of 20 bytes */
-#define CHUNK_HASH_SIZE 45 * sizeof(char)
+
 //#define CHUNK_HASH_SIZE 20 /* keep hash in string format */
 
 #define CHUNK_NUM_PER_PACK ((UDP_MAX_PACK_SIZE - strlen("whohas") - sizeof(int)) / CHUNK_HASH_SIZE)
@@ -97,13 +96,23 @@ void build_header(packet_h *header, int magicNo, int versionNo, int packType, in
 }
 
 /*
- * packet_h *header: the packet header
- * char *query: the packet body
+ * peers_t *peers: a pointer to all peers
+ * int idx: the index of the queries peer
  *
- * given the packet header & packet body, send the packet to recipient
+ * given a peer index, this function will return the information about that peer
  */
-void send_packet(char *ip, int port, packet_h *header, char *query, int mysock){
-  char *msg = (char*)malloc(header->packLen + strlen(query));
+peer_info_t *get_peer_info(peers_t *peers, int idx){
+  peer_info_t *p;
+  for (int i = 0; i < peers->peer.len ;i++){
+    p = (peer_info_t*)vec_get(&peers->peer, i);
+    if (p->id == idx){
+      break;
+    }
+  }
+  return p;
+}
+
+void build_packet(packe_h *header, char *query, char *msg){
   /* there is no endian problem for a single byte */
   uint16_t magicNo = htons(header->magicNo);
   uint16_t headerLen = htons(header->headerLen);
@@ -119,8 +128,47 @@ void send_packet(char *ip, int port, packet_h *header, char *query, int mysock){
   memcpy(msg + 12, &ackNo, 4);
   //todo: possibly there are extended headers
   memcpy(msg + header->headerLen, query, strlen(query));
+  return;
+}
+
+/*
+ * packet_h *header: the packet header
+ * char *query: the packet body
+ *
+ * given the packet header & packet body, send the packet to recipient
+ */
+void send_packet(char *ip, int port, packet_h *header, char *query, int mysock){
+  char *msg = (char*)malloc(header->packLen + strlen(query));
+  build_packet(header, query, msg);
   send_udp_packet_with_sock(ip, port, msg, mysock, header->packLen + strlen(query));
   free(msg);
+  return;
+}
+
+/*
+ * bt_config_t *config: the config struct
+ * char *chunk_msg: the chunk hash
+ * int peer_idx: index of the peer
+ * vector *chunk_data: the vector that will hold chunk data 
+ */
+void request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx, vector *chunk_data){
+  /*
+    1. build query message
+    2. populate header
+    3. send through reliabel udp
+   */
+  packet_h header;
+  char *query = (char*)malloc(strlen("GET") + CHUNK_HASH_SIZE + 2), *packet;
+  strcat(query, "GET ");
+  strcat(query, chunk_msg);
+  build_header(&header, 15441, 1, 2, PACK_HEADER_BASE_LEN, PACK_HEADER_BASE_LEN + strlen(query), 0, 0);
+  packet = (char*)malloc(PACK_HEADER_BASE_LEN + strlen(query));
+  build_packet(&header, query, packet);
+  peer_info_t *peer = get_peer_info(config->peer, peer_idx);
+  // send the packet 
+  
+  free(query);
+  free(packet);
   return;
 }
 
@@ -260,6 +308,20 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
 
 
 /*
+  this function is a comparator to sort chunk_dis struct 
+ */
+int chunks_dis_cmp(chunk_dis *dis1, chunk_dis *dis2){
+  if (dis1->idx.len > dis2.idx.len){
+    return 1;
+  }else if (dis1->idx.len < dis2.idx.len){
+    return -1;
+  }else{
+    return 0;
+  }
+}
+
+
+/*
  * Have collected replies from all peers. Need to send GET messages to
  * corresponding peers based on scarcity
  *
@@ -268,14 +330,53 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
  * Notes:
  * once a command line request is processed, all dynamically allocated
  * resources should be released
+ *
+ * Bittorrent user a "rarest-chunk-first" heuristic where it tries to
+ * fetch the rarest chunk first. The peer can download/upload 4
+ * different chunks at the same time
  */
 void send_get_queries(bt_config_t *config, vector *ihave_msgs){
-  /* todo:
-     1. find the correct peer based on scarcity and send GET query
-     2. remove all timers for whohas messages
-     3. remove dynamically allocated memeories
+  vector chunks;
+  vecotr chunk_data;
+  init_vector(&chunks, sizeof(chunk_dis));
+  init_vector(&chunk_data, CHUNK_LEN);
 
-  */
+  /* loop through peers to collect distribution of chunks */
+  for (int i = 0; i < config->desired_chunks.len; i++){
+    char *chunk = vec_get(&config->desired_chunks, i);
+    chunk_dis chunk_info;
+    init_vector(&chunk_info.idx, sizeof(short));
+    strcpy(chunk_info.msg, chunk);
+    for (int j = 0; j < ihave_msgs->len; j++){
+      ihave_t *ihave = (ihave_t*)vec_get(ihave_msgs, j);
+      for (int k = 0; k < ihave->chunk_num; k++){
+        char *chunk_have = ihave->chunks[k];
+        if (!strcmp(chunk, chunk_have) || strstr(chunk, chunk_have) != NULL){
+          vec_add(&chunk_info, &ihave->idx);
+          break;
+        }
+      }
+    }
+  }
+  vec_sort(chunks, chunks_dis_cmp);
+  time_t t;
+  srand((unsigned)time(&t));
+  for (int i = 0; i < chunks.len ;i++){
+    chunk_dis *chunk_info = (chunk_dis*)vec_get(&chunks, i);
+    char *chunk_msg = chunk_info->msg;
+    /*
+      naive implementation here, randomly pick a peer from the list
+    */
+    int idx = rand() % chunk_info->idx.len;
+    request_chunk(config, chunk_msg, *(short*)vec_get(&chunk_info.idx, idx), &chunk_data);
+  }
+
+  /* cleanup dynamic memory */
+  for (int i = 0; i < chunks.len; i++){
+    vec_free(((chunk_dis*)vec_get(chunks, i))->idx);
+  }
+  free(&chunks);
+  free(&chunk_data);
   release_all_timers(config);
   release_all_dynamic_memory(config);
   fprintf(stdout, "sending GET query to the right peer based on scarcity \n");
@@ -316,8 +417,7 @@ void remove_timer(vector *cur_timer, int idx){
  */
 void process_ihave(int sock, char *buf, struct sockaddr_in from,
                    socklen_t fromlen, int BUFLEN, bt_config_t *config, vector *ihave_msgs, packet_h *header){
-  //todo: need to update code after reformat message
-  //todo: what if receive the reply after time out?
+  //todo: what if receive the reply after time out? check whether has received from the peer
   char *token, *ip, peer_idx, *next_space, *buf_backup;
   int ihave_nums;
   
@@ -342,12 +442,13 @@ void process_ihave(int sock, char *buf, struct sockaddr_in from,
   ihave->msg = (char*)malloc(strlen(buf_backup) + 1);
   strcpy(ihave->msg, buf_backup);
   ihave->chunks = (char**)malloc(sizeof(char*) * ihave_nums);
+  ihave->idx = peer_idx;
   for (int i = 0; i < ihave_nums; i++){
     token = strtok(NULL, " ");
     ihave->chunks[i] = (char*)malloc(strlen(token) + 1);
     strcpy(ihave->chunks[i], token);
   }
-  vec_insert_at(ihave_msgs, ihave, peer_idx);
+  vec_add(ihave_msgs, ihave);
   remove_timer(&config->whohas_timers, peer_idx);
   /* have received the replies from all peers */
   if (ihave_msgs->len == config->peer->peer.len){
@@ -664,22 +765,6 @@ void handle_user_input(char *line, void *cbdata, bt_config_t *config, vector *ih
   }
 }
 
-/*
- * peers_t *peers: a pointer to all peers
- * int idx: the index of the queries peer
- *
- * given a peer index, this function will return the information about that peer
- */
-peer_info_t *get_peer_info(peers_t *peers, int idx){
-  peer_info_t *p;
-  for (int i = 0; i < peers->peer.len ;i++){
-    p = (peer_info_t*)vec_get(&peers->peer, i);
-    if (p->id == idx){
-      break;
-    }
-  }
-  return p;
-}
 
 /*
  * checks all the timers stored in config. If there is any timeouts,

@@ -42,6 +42,10 @@ void vec_free(vector *vec){
   return;
 }
 
+void vec_sort(vector *vec, int (*cmp)(chunk_dis *, chunk_dis*)){
+  //todo: implement quick sort here? should it be in-place?
+}
+
 /*
  * vector *vec: the vector pointer
  * void *ele: pointer to the vector element

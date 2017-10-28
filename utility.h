@@ -9,6 +9,9 @@
 #define IHAVE_TIMEOUT_TIME 180 /* timeout time is 180s */
 #define PORT_LEN 12
 #define UDP_MAX_PACK_SIZE 1500 /* maximum udp packet size */
+/* Chunk hashes have a fixed length of 20 bytes */
+#define CHUNK_HASH_SIZE 45 * sizeof(char)
+#define CHUNK_LEN 524288 /* chunk size is 512kB*/
 
 
 typedef struct vector{
@@ -46,11 +49,20 @@ typedef struct ihave{
   char **chunks; /* a double pointer to chunks stored on peer peer */
 }ihave_t;
 
+typedef struct chunk_dis{
+  /* the chunk hash */
+  char msg[CHUNK_HASH_SIZE];
+  /* the indexes of peers that own this chunk */
+  vector idx;
+}chunk_dis;
+
 
 void init_vector(vector *vec, int ele_size);
 void vec_add(vector *vec, void *ele);
 void *vec_get(vector *vec, int idx);
 void vec_insert_at(vector *vec, void *ele, int idx);
 void vec_free(vector *vec);
+/* chunk_dis is not general enough, how about void* ? */
+void vec_sort(vector *vec, int (*cmp)(chunk_dis *, chunk_dis*));
 int read_from_sock(int sock, char *buf, int BUFLEN);
 #endif
