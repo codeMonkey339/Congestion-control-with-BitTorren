@@ -152,21 +152,14 @@ void send_packet(char *ip, int port, packet_h *header, char *query, int mysock){
  * vector *chunk_data: the vector that will hold chunk data 
  */
 void request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx, vector *chunk_data){
-  /*
-    1. build query message
-    2. populate header
-    3. send through reliabel udp
-   */
   packet_h header;
   char *query = (char*)malloc(strlen("GET") + CHUNK_HASH_SIZE + 2), *packet;
   strcat(query, "GET ");
   strcat(query, chunk_msg);
   build_header(&header, 15441, 1, 2, PACK_HEADER_BASE_LEN, PACK_HEADER_BASE_LEN + strlen(query), 0, 0);
   packet = (char*)malloc(PACK_HEADER_BASE_LEN + strlen(query));
-  build_packet(&header, query, packet);
   peer_info_t *peer = get_peer_info(config->peer, peer_idx);
-  // send the packet 
-  
+  send_packet(peer->ip, peer->port, &header, query, config->mysock);
   free(query);
   free(packet);
   return;
@@ -459,16 +452,25 @@ void process_ihave(int sock, char *buf, struct sockaddr_in from,
 }
 
 /*
-  counterpart of the process_ihave function
-  what kind of reliable protocol to develop?
- */
+  need to send DATA packet through reliable communication
+
+  Chunk File: i.e c.masterchunks
+  File: <path to the file which neeeds sharing>
+  Chunks:
+  id chunk-hash
+  
+*/
 void process_peer_get(int sock, char *buf, struct sockaddr_in from,
                       socklen_t fromlen, int BUFLEN, bt_config_t *config, packet_h *header){
   //todo: need to update code after reformat message
   // 1. open the master hash_chunk_file
+  // 1.1 from the masterchunkfile retrieve data
   // 2. how to retrieve the chunk based on chunk hash & id???
-
-  
+  char *buf_backup = (char*)malloc(strlen(buf) + 1), *token;
+  memset(buf_backup, 0, strlen(buf) + 1);
+  strcpy(buf_backup, buf);
+  token = strtok(buf_backup, " ");
+  token = strtok(NULL, " ");
   fprintf(stdout, "Servicing peers' request for a certain chunk of  file \n");
   return;
 }
