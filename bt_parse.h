@@ -50,7 +50,7 @@ struct bt_config_s {
 
   int argc; 
   char **argv;
-  /* vector storing the chunks that needs to be downloaded */
+  /* vector storing the chunks hashes that needs to be downloaded */
   vector desired_chunks;
   /* vector storing all the ihave messages from peers */
   vector ihave_msgs;
@@ -62,6 +62,8 @@ struct bt_config_s {
   bt_peer_t *peers;
   /* udp sessions between host & its peers */
   vector sessions;
+  /* sender sessions */
+  vector sender_sessions;
 };
 typedef struct bt_config_s bt_config_t;
 

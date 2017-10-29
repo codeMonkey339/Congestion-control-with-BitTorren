@@ -171,7 +171,7 @@ void send_packet(char *ip, int port, packet_h *header, char *query, int mysock){
  * int peer_idx: index of the peer
  * vector *chunk_data: the vector that will hold chunk data 
  */
-void request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx, vector *chunk_data){
+void request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx){
   packet_h header;
   char *query = (char*)malloc(strlen("GET") + CHUNK_HASH_SIZE + 2), *packet;
   strcat(query, "GET ");
@@ -334,6 +334,17 @@ int chunks_dis_cmp(chunk_dis *dis1, chunk_dis *dis2){
 }
 
 
+void build_udp_sender_session(udp_sender_session *session, int peer_id, char *chunk_hash, bt_config_t *config){
+  peer_info_t *peer = get_peer_info(config->peer, peer_id);
+  session->last_packet_acked = 0;
+  session->peer_id = peer_id;
+  strcpy(session->ip, peer->ip);
+  session->sock = peer->port;
+  strcpy(session->chunk_hash, chunk_hash);
+  session->data = (char*)malloc(CHUNK_LEN);
+  return;
+}
+
 /*
  * Have collected replies from all peers. Need to send GET messages to
  * corresponding peers based on scarcity
@@ -350,9 +361,7 @@ int chunks_dis_cmp(chunk_dis *dis1, chunk_dis *dis2){
  */
 void send_get_queries(bt_config_t *config, vector *ihave_msgs){
   vector chunks;
-  vector chunk_data;
   init_vector(&chunks, sizeof(chunk_dis));
-  init_vector(&chunk_data, CHUNK_LEN);
 
   /* loop through peers to collect distribution of chunks */
   for (int i = 0; i < config->desired_chunks.len; i++){
@@ -377,11 +386,15 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
   for (int i = 0; i < chunks.len ;i++){
     chunk_dis *chunk_info = (chunk_dis*)vec_get(&chunks, i);
     char *chunk_msg = chunk_info->msg;
+    udp_sender_session *session = (udp_sender_session*)malloc(sizeof(udp_sender_session));
     /*
       naive implementation here, randomly pick a peer from the list
     */
     int idx = rand() % chunk_info->idx.len;
-    request_chunk(config, chunk_msg, *(short*)vec_get(&chunk_info->idx, idx), &chunk_data);
+    int peer_idx = *(short*)vec_get(&chunk_info->idx, idx);
+    build_udp_sender_session(session, peer_idx, chunk_msg, config);
+    vec_add(&config->sender_sessions, session);
+    request_chunk(config, chunk_msg, peer_idx);
   }
 
   /* cleanup dynamic memory */
@@ -389,7 +402,6 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
     vec_free(&((chunk_dis*)vec_get(&chunks, i))->idx);
   }
   vec_free(&chunks);
-  vec_free(&chunk_data);
   release_all_timers(config);
   release_all_dynamic_memory(config);
   return;
@@ -569,7 +581,8 @@ void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *fileb
 
   Each peer can only have 1 simultaneous download from any other peer
   in the network, meaning that IP address and UDP port will uniquely
-  determine which download a DATA packet belongs to
+  determine which download a DATA packet belongs to --> save the
+  trouble demultiplexing packets!
 
   todo:
   1. what to do if no slot within the window?
@@ -601,13 +614,6 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
     }
     fseek(f1, chunk_idx * CHUNK_LEN, SEEK_SET);
     memset(filebuf, 0, PACK_HEADER_BASE_LEN);
-    /*
-      todos:
-      1. check whether there is connection for this peer
-      2. check any available slot within the window
-      3. send the packet & add the timer
-      4. check if all packets are sent & acked. If so, release memory
-    */
     if ((packSize = fread(filebuf, 1, PACK_HEADER_BASE_LEN, f1)) > 0){
       build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize, session->last_packet_sent + 1, session->last_packet_acked);
       send_packet(from_ip, sock, &cur_header, filebuf, config->mysock);
@@ -631,7 +637,25 @@ void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen
     todo:
     1. need to release timer
     2. send ACK packet
+    3. check whether have received all packets?
    */
+  
+  return;
+}
+
+/*
+ *
+ */
+void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen, int BUFLEN, bt_config_t *config, packet_h *header){
+  /*
+    todos:
+    1. need to parse the packet and strip away the header
+    2. need to put the packet somewhere, and track all the packets
+    3. if received all chunks, need to create a new file
+    4. send the ACK packet
+    5. need to release dynamic memeory like config->udp_sender_session
+   */
+
   
   return;
 }
@@ -670,6 +694,7 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
     process_peer_get(sock, buf + header->headerLen, from, fromlen, BUFLEN, config, header);
   }else if (header->packType == 3){
     //todo: process data packet
+    process_data(sock, buf + header->headerLen, from, fromLen, BUFLEN, config, header);
   }else if (header->packType == 4){
     //todo: ack packet
     process_ack(sock, buf + header->headerLen, from, fromlen, BUFLEN, config, header);
@@ -703,7 +728,7 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
  * given a chunkfile and current peer's has_chunk_file, only keep
  * those chunks in chunkfile that are not in has_chunk_file
  */
-vector *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num){
+vector *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num, bt_config_t *config){
   FILE *f1, *f2;
   vector v1, v2;
   vector *res = NULL;
@@ -740,6 +765,7 @@ vector *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num)
     }
     if (!own){
       vec_add(res, str_i);
+      vec_add(&config->desired_chunks, str_i);
     }
   }
   *chunks_num = res->len;
@@ -772,6 +798,8 @@ peers_t *load_peers(bt_config_t *config){
   init_vector(&config->ihave_msgs, sizeof(ihave_t));
   init_vector(&peers->peer, sizeof(peer_info_t));
   init_vector(&config->sessions, sizeof(udp_session));
+  init_vector(&config->desired_chunks, CHUNK_HASH_SIZE);
+  init_vector(&config->sender_sessions, sizeof(udp_sender_session));
   if ((f = fopen(peer_list_file, "r")) == NULL){
     fprintf(stderr, "Failed to open peer_list_file %s\n", peer_list_file);
     return NULL;
@@ -881,7 +909,7 @@ void flood_peers_query(peers_t *peers, vector *queries, bt_config_t *config){
 void process_get(char *chunkfile, char *outputfile, bt_config_t *config, vector *ihave_msgs) {
   int chunks_num;
   vector *filtered_chunks;
-  if ((filtered_chunks = filter_chunkfile(chunkfile, config->has_chunk_file, &chunks_num)) == NULL){
+  if ((filtered_chunks = filter_chunkfile(chunkfile, config->has_chunk_file, &chunks_num, config)) == NULL){
     fprintf(stderr, "Error filtering chunk files that are in own hash-chunk-file \n");
     exit(1);
   }

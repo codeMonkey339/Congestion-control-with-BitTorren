@@ -61,6 +61,16 @@ typedef struct chunk_dis{
   vector idx;
 }chunk_dis;
 
+typedef struct chunk_buf{
+  /* hash of the chunk */
+  char *chunk_hash;
+  /* peer ip*/
+  char *ip;
+  /* peer port */
+  short port;
+  /* chunk data */
+  char *data;
+}chunk_buf;
 
 void init_vector(vector *vec, int ele_size);
 void vec_add(vector *vec, void *ele);
