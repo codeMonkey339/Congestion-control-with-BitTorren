@@ -112,7 +112,7 @@ peer_info_t *get_peer_info(peers_t *peers, int idx){
   return p;
 }
 
-void build_packet(packe_h *header, char *query, char *msg){
+void build_packet(packet_h *header, char *query, char *msg){
   /* there is no endian problem for a single byte */
   uint16_t magicNo = htons(header->magicNo);
   uint16_t headerLen = htons(header->headerLen);
@@ -304,9 +304,9 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
   this function is a comparator to sort chunk_dis struct 
  */
 int chunks_dis_cmp(chunk_dis *dis1, chunk_dis *dis2){
-  if (dis1->idx.len > dis2.idx.len){
+  if (dis1->idx.len > dis2->idx.len){
     return 1;
-  }else if (dis1->idx.len < dis2.idx.len){
+  }else if (dis1->idx.len < dis2->idx.len){
     return -1;
   }else{
     return 0;
@@ -330,7 +330,7 @@ int chunks_dis_cmp(chunk_dis *dis1, chunk_dis *dis2){
  */
 void send_get_queries(bt_config_t *config, vector *ihave_msgs){
   vector chunks;
-  vecotr chunk_data;
+  vector chunk_data;
   init_vector(&chunks, sizeof(chunk_dis));
   init_vector(&chunk_data, CHUNK_LEN);
 
@@ -351,7 +351,7 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
       }
     }
   }
-  vec_sort(chunks, chunks_dis_cmp);
+  vec_sort(&chunks, chunks_dis_cmp);
   time_t t;
   srand((unsigned)time(&t));
   for (int i = 0; i < chunks.len ;i++){
@@ -361,15 +361,15 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
       naive implementation here, randomly pick a peer from the list
     */
     int idx = rand() % chunk_info->idx.len;
-    request_chunk(config, chunk_msg, *(short*)vec_get(&chunk_info.idx, idx), &chunk_data);
+    request_chunk(config, chunk_msg, *(short*)vec_get(&chunk_info->idx, idx), &chunk_data);
   }
 
   /* cleanup dynamic memory */
   for (int i = 0; i < chunks.len; i++){
-    vec_free(((chunk_dis*)vec_get(chunks, i))->idx);
+    vec_free(&((chunk_dis*)vec_get(&chunks, i))->idx);
   }
-  free(&chunks);
-  free(&chunk_data);
+  vec_free(&chunks);
+  vec_free(&chunk_data);
   release_all_timers(config);
   release_all_dynamic_memory(config);
   fprintf(stdout, "sending GET query to the right peer based on scarcity \n");
@@ -458,6 +458,10 @@ void process_ihave(int sock, char *buf, struct sockaddr_in from,
   File: <path to the file which neeeds sharing>
   Chunks:
   id chunk-hash
+
+  How to handle acknolwegement packet?
+  main a session for each peer, extract sending data packet into a new function.
+  What inofrmation is needed?
   
 */
 void process_peer_get(int sock, char *buf, struct sockaddr_in from,
@@ -468,15 +472,15 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
   // 2. how to retrieve the chunk based on chunk hash & id???
   FILE *f, *f1;
   char *buf_backup = (char*)malloc(strlen(buf) + 1), *token, *line, masterfile[BT_FILENAME_LEN], *t, line_backup[BT_FILENAME_LEN], filebuf[UDP_MAX_PACK_SIZE];
-  int line_len = 0, chunk_idx, idx, packNo = 1, ackNo;
+  int line_len = 0, chunk_idx, idx, packNo = 1, ackNo = 0;
   size_t packSize = 0;
-  packet_t header;
+  packet_h cur_header;
   memset(buf_backup, 0, strlen(buf) + 1);
   strcpy(buf_backup, buf);
   token = strtok(buf_backup, " ");
   token = strtok(NULL, " "); /* token pointers to chunk hash */
 
-  if ((f = open(config->chunk_file, "r")) == NULL){
+  if ((f = fopen(config->chunk_file, "r")) == NULL){
     fprintf(stderr, "Failed to open chunk file %s\n", config->chunk_file);
     exit(1);
   }
@@ -491,7 +495,7 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
       t = strtok(NULL, " "); /* there is a remaining hash line */
       if (t != NULL){
         idx = *(int*)t;
-        t = strtock(NULL, " ");
+        t = strtok(NULL, " ");
         if (!strcmp(t, token) || strstr(t, token) != NULL){
           chunk_idx = idx;
           free(line);
@@ -511,14 +515,14 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
     line = NULL;
     line_len = 0;
   }
-  if ((f1 = open(masterfile, "r")) == NULL){
+  if ((f1 = fopen(masterfile, "r")) == NULL){
     fprintf(stderr, "Cannot open master chunk file %s \n", masterfile);
     exit(1);
   }
   fseek(f1, chunk_idx * CHUNK_LEN, SEEK_SET);
   memset(filebuf, 0, PACK_HEADER_BASE_LEN);
   while((packSize = fread(filebuf, 1, PACK_HEADER_BASE_LEN, f1)) > 0){
-    build_header(&header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize, packNo, ackNo);
+    build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize, packNo, ackNo);
     // send the packet reliably to and handle return value?
   }
 
