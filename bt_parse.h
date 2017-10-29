@@ -16,6 +16,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include "utility.h"
+#include "reliable_udp.h"
 
 #define BT_FILENAME_LEN 255
 #define BT_MAX_PEERS 1024
@@ -59,6 +60,8 @@ struct bt_config_s {
   vector whohas_timers;
   /* starter code provided, employs a linked list implementation */
   bt_peer_t *peers;
+  /* udp sessions between host & its peers */
+  vector sessions;
 };
 typedef struct bt_config_s bt_config_t;
 

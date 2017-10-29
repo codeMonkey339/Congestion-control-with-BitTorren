@@ -65,6 +65,19 @@ int main(int argc, char **argv) {
   return 0;
 }
 
+void build_session(udp_session *session, short last_packet_sent, short last_packet_acked, short last_packet_available, short send_window, short recv_window, int peer_id, short dup_ack, FILE *f, char *from_ip, short sock){
+  session->last_packet_sent = last_packet_sent;
+  session->last_packet_acked = last_packet_acked;
+  session->last_packet_available = last_packet_available;
+  session->send_window = send_window;
+  session->recv_window = recv_window;
+  session->peer_id = peer_id;
+  session->dup_ack = dup_ack;
+  session->f = f;
+  strcpy(session->ip, from_ip);
+  session->sock = sock;
+  return;
+}
 
 packet_h * parse_packet(char **buf){
   char *start = *buf;
@@ -110,6 +123,13 @@ peer_info_t *get_peer_info(peers_t *peers, int idx){
     }
   }
   return p;
+}
+
+/*
+  find the peer information based on given ip & sock
+ */
+peer_info_t *find_peer_from_list(peers_t *peers, char *ip, int sock){
+  
 }
 
 void build_packet(packet_h *header, char *query, char *msg){
@@ -345,7 +365,7 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
       for (int k = 0; k < ihave->chunk_num; k++){
         char *chunk_have = ihave->chunks[k];
         if (!strcmp(chunk, chunk_have) || strstr(chunk, chunk_have) != NULL){
-          vec_add(&chunk_info, &ihave->idx);
+          vec_add(&chunk_info.idx, &ihave->idx);
           break;
         }
       }
@@ -372,7 +392,6 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
   vec_free(&chunk_data);
   release_all_timers(config);
   release_all_dynamic_memory(config);
-  fprintf(stdout, "sending GET query to the right peer based on scarcity \n");
   return;
 }
 
@@ -380,11 +399,11 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
 /*
   make the functio more generic?
  */
-void remove_timer(vector *cur_timer, int idx){
+void remove_timer(vector *cur_timer, char *ip, int sock){
   timer *t;
   for (int i = 0; i < cur_timer->len; i++){
     t = (timer*)vec_get(cur_timer, i);
-    if (t->peer_id == idx){
+    if (!strcmp(t->ip, ip) && t->sock == sock){
       t->start = -1; /* only need to reset the start time */
       break;
     }
@@ -442,7 +461,7 @@ void process_ihave(int sock, char *buf, struct sockaddr_in from,
     strcpy(ihave->chunks[i], token);
   }
   vec_add(ihave_msgs, ihave);
-  remove_timer(&config->whohas_timers, peer_idx);
+  remove_timer(&config->whohas_timers, ip, sock);
   /* have received the replies from all peers */
   if (ihave_msgs->len == config->peer->peer.len){
     send_get_queries(config, ihave_msgs);
@@ -452,36 +471,27 @@ void process_ihave(int sock, char *buf, struct sockaddr_in from,
 }
 
 /*
-  need to send DATA packet through reliable communication
+  lookg for a session based on from_ip and from_sock,
+ */
+udp_session *find_session(char *from_ip, short from_sock, vector *sessions){
+  udp_session *session = NULL;
+  for (int i = 0; i < sessions->len; i++){
+    udp_session *cur_session = (udp_session*)vec_get(sessions, i);
+    if (!strcmp(cur_session->ip, from_ip) && from_sock == cur_session->sock){
+      session = cur_session;
+      break;
+    }
+  }
+  return session;
+}
 
-  Chunk File: i.e c.masterchunks
-  File: <path to the file which neeeds sharing>
-  Chunks:
-  id chunk-hash
-
-  How to handle acknolwegement packet?
-  main a session for each peer, extract sending data packet into a new function.
-  What inofrmation is needed?
-  
-*/
-void process_peer_get(int sock, char *buf, struct sockaddr_in from,
-                      socklen_t fromlen, int BUFLEN, bt_config_t *config, packet_h *header){
-  //todo: need to update code after reformat message
-  // 1. open the master hash_chunk_file
-  // 1.1 from the masterchunkfile retrieve data
-  // 2. how to retrieve the chunk based on chunk hash & id???
-  FILE *f, *f1;
-  char *buf_backup = (char*)malloc(strlen(buf) + 1), *token, *line, masterfile[BT_FILENAME_LEN], *t, line_backup[BT_FILENAME_LEN], filebuf[UDP_MAX_PACK_SIZE];
-  int line_len = 0, chunk_idx, idx, packNo = 1, ackNo = 0;
-  size_t packSize = 0;
-  packet_h cur_header;
-  memset(buf_backup, 0, strlen(buf) + 1);
-  strcpy(buf_backup, buf);
-  token = strtok(buf_backup, " ");
-  token = strtok(NULL, " "); /* token pointers to chunk hash */
-
-  if ((f = fopen(config->chunk_file, "r")) == NULL){
-    fprintf(stderr, "Failed to open chunk file %s\n", config->chunk_file);
+int find_chunk_idx(char *chunk, char *chunk_file, char *masterfile){
+  FILE *f;
+  char *line, line_backup[BT_FILENAME_LEN], *t;
+  size_t line_len = 0;
+  int idx, chunk_idx;
+  if ((f = fopen(chunk_file, "r")) == NULL){
+    fprintf(stderr, "Failed to open chunk file %s\n", chunk_file);
     exit(1);
   }
   while(getline(&line, &line_len, f) != -1){
@@ -496,7 +506,7 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
       if (t != NULL){
         idx = *(int*)t;
         t = strtok(NULL, " ");
-        if (!strcmp(t, token) || strstr(t, token) != NULL){
+        if (!strcmp(t, chunk) || strstr(t, chunk) != NULL){
           chunk_idx = idx;
           free(line);
           break;
@@ -505,7 +515,7 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
     }else{ /* chunk hash line */
       idx = *(int*)t;
       t = strtok(NULL, " ");
-      if (!strcmp(t, token) || strstr(t, token) != NULL){
+      if (!strcmp(t, chunk) || strstr(t, chunk) != NULL){
         chunk_idx = idx;
         free(line);
         break;
@@ -515,17 +525,114 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
     line = NULL;
     line_len = 0;
   }
-  if ((f1 = fopen(masterfile, "r")) == NULL){
-    fprintf(stderr, "Cannot open master chunk file %s \n", masterfile);
-    exit(1);
-  }
-  fseek(f1, chunk_idx * CHUNK_LEN, SEEK_SET);
-  memset(filebuf, 0, PACK_HEADER_BASE_LEN);
-  while((packSize = fread(filebuf, 1, PACK_HEADER_BASE_LEN, f1)) > 0){
-    build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize, packNo, ackNo);
-    // send the packet reliably to and handle return value?
-  }
+  return chunk_idx;
+}
 
+/*
+  add a new timer into the vector of timers
+ */
+void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf){
+      timer *cur_timer = (timer*)malloc(sizeof(timer));
+      cur_timer->start = clock();
+      cur_timer->repeat_times = 0;
+      strcpy(cur_timer->ip, ip);
+      cur_timer->sock = sock;
+      if (header == NULL){
+        cur_timer->msg = (char*)malloc(strlen(filebuf) + 1);
+        strcpy(cur_timer->msg, filebuf);
+      }else{
+        cur_timer->msg = (char*)malloc(sizeof(packet_h) + strlen(filebuf));
+        memcpy(cur_timer->msg, header, sizeof(packet_h));
+        memcpy(cur_timer->msg + sizeof(packet_h), filebuf, strlen(filebuf));
+      }
+      vec_add(timers, cur_timer);
+      return;
+}
+
+/*
+  need to send DATA packet through reliable communication
+
+  Chunk File: i.e c.masterchunks
+  File: <path to the file which neeeds sharing>
+  Chunks:
+  id chunk-hash
+
+  How to handle acknolwegement packet?
+  main a session for each peer, extract sending data packet into a new function.
+
+  the sequence number always starts with 1 for a new "GET" connection
+  should not combine DATA packet and ACK packet. A DATA packet should
+  not contain ACK, and vice versa
+
+  GET packets don't have to be transmitted through reliabe
+  transmission
+
+  Each peer can only have 1 simultaneous download from any other peer
+  in the network, meaning that IP address and UDP port will uniquely
+  determine which download a DATA packet belongs to
+
+  todo:
+  1. what to do if no slot within the window?
+*/
+void process_peer_get(int sock, char *buf, struct sockaddr_in from,
+                      socklen_t fromlen, int BUFLEN, bt_config_t *config, packet_h *header){
+  FILE *f1;
+  char *buf_backup = (char*)malloc(strlen(buf) + 1), *token, masterfile[BT_FILENAME_LEN], filebuf[UDP_MAX_PACK_SIZE], *from_ip;
+  int chunk_idx;
+  size_t packSize = 0;
+  packet_h cur_header;
+  udp_session *session = NULL;
+  memset(buf_backup, 0, strlen(buf) + 1);
+  strcpy(buf_backup, buf);
+  from_ip = inet_ntoa(from.sin_addr);
+  if ((session = find_session(from_ip, sock, &config->sessions)) == NULL){
+    session = (udp_session*)malloc(sizeof(udp_session));
+  }
+  if ((session->last_packet_sent - session->last_packet_acked) < DEFAULT_WINDOW_SIZE){
+    token = strtok(buf_backup, " ");
+    token = strtok(NULL, " "); /* token pointers to chunk hash */
+    chunk_idx = find_chunk_idx(token, config->chunk_file, masterfile);
+    if ((f1 = fopen(masterfile, "r")) == NULL){
+      fprintf(stderr, "Cannot open master chunk file %s \n", masterfile);
+      exit(1);
+    }
+    if (session->f== NULL){ // init session struct
+      build_session(session, 0, 0, 0, 8, 8, config->identity, 0, f1, from_ip, sock);
+    }
+    fseek(f1, chunk_idx * CHUNK_LEN, SEEK_SET);
+    memset(filebuf, 0, PACK_HEADER_BASE_LEN);
+    /*
+      todos:
+      1. check whether there is connection for this peer
+      2. check any available slot within the window
+      3. send the packet & add the timer
+      4. check if all packets are sent & acked. If so, release memory
+    */
+    if ((packSize = fread(filebuf, 1, PACK_HEADER_BASE_LEN, f1)) > 0){
+      build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize, session->last_packet_sent + 1, session->last_packet_acked);
+      send_packet(from_ip, sock, &cur_header, filebuf, config->mysock);
+      session->last_packet_sent++;
+      add_timer(&config->whohas_timers, from_ip, sock, &cur_header, filebuf);
+    }else{
+      fprintf(stderr, "Failed to read packet from master file %s\n", masterfile);
+      exit(1);
+    }
+  }else{
+    //todo: there have been enough pending packets, what todo?
+  }
+  return;
+}
+
+/*
+  Based on acknowledgements from peers, take next step actions
+ */
+void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen, int BUFLEN, bt_config_t *config, packet_h *header){
+  /*
+    todo:
+    1. need to release timer
+    2. send ACK packet
+   */
+  
   return;
 }
 
@@ -565,6 +672,7 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
     //todo: process data packet
   }else if (header->packType == 4){
     //todo: ack packet
+    process_ack(sock, buf + header->headerLen, from, fromlen, BUFLEN, config, header);
   }else if (header->packType == 5){
     //todo: denied packet
   }else{
@@ -663,6 +771,7 @@ peers_t *load_peers(bt_config_t *config){
   config->peer = peers;
   init_vector(&config->ihave_msgs, sizeof(ihave_t));
   init_vector(&peers->peer, sizeof(peer_info_t));
+  init_vector(&config->sessions, sizeof(udp_session));
   if ((f = fopen(peer_list_file, "r")) == NULL){
     fprintf(stderr, "Failed to open peer_list_file %s\n", peer_list_file);
     return NULL;
@@ -748,14 +857,7 @@ void flood_peers_query(peers_t *peers, vector *queries, bt_config_t *config){
     for (int i = 0; i < peers->peer.len; i++){
       peer_info_t *peer = (peer_info_t*)vec_get(&peers->peer, i);
       send_packet(peer->ip, peer->port, &header, query, config->mysock);
-      clock_t start = clock();
-      timer *t = (timer*)malloc(sizeof(timer));
-      t->start = start;
-      t->repeat_times = 0;
-      t->peer_id = ((peer_info_t*)vec_get(&peers->peer,i))->id;
-      t->msg = (char*)malloc(strlen(query) + 1);
-      strcpy(t->msg, query);
-      vec_add(&config->whohas_timers, t);
+      add_timer(&config->whohas_timers, peer->ip, peer->port, NULL, query);
     }
   }
 

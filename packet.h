@@ -2,7 +2,10 @@
 #define __PACKET__
 
 #include <stdint.h>
-
+/*
+  by changing the header length, the peers can provide custom
+  optimization for all the packets
+ */
 typedef struct packet_h{
   /* magic number: 15441*/
   uint16_t magicNo;

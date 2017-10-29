@@ -39,6 +39,10 @@ typedef struct timer{
   clock_t start;
   short repeat_times;
   short peer_id;
+  /* ip of recipient */
+  char ip[IP_STR_LEN];
+  /* socket of recipient */
+  short sock;
   /* each timer carries with itself the message to send */
   char *msg;
 }timer;
