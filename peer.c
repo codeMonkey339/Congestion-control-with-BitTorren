@@ -79,6 +79,10 @@ void build_session(udp_session *session, short last_packet_sent, short last_pack
   return;
 }
 
+udp_sender_session *find_sender_session(vector *sender_sessions, char *ip, int sock){
+  return NULL;
+}
+
 packet_h * parse_packet(char **buf){
   char *start = *buf;
   packet_h *header = (packet_h*)malloc(sizeof(packet_h));
@@ -588,7 +592,8 @@ void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *fileb
   1. what to do if no slot within the window?
 */
 void process_peer_get(int sock, char *buf, struct sockaddr_in from,
-                      socklen_t fromlen, int BUFLEN, bt_config_t *config, packet_h *header){
+                      socklen_t fromlen, int BUFLEN,
+                      bt_config_t *config, packet_h *header){
   FILE *f1;
   char *buf_backup = (char*)malloc(strlen(buf) + 1), *token, masterfile[BT_FILENAME_LEN], filebuf[UDP_MAX_PACK_SIZE], *from_ip;
   int chunk_idx;
@@ -614,6 +619,7 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
     }
     fseek(f1, chunk_idx * CHUNK_LEN, SEEK_SET);
     memset(filebuf, 0, PACK_HEADER_BASE_LEN);
+    //todo: 500KB will be sent through multiple packets, here code is wrong
     if ((packSize = fread(filebuf, 1, PACK_HEADER_BASE_LEN, f1)) > 0){
       build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize, session->last_packet_sent + 1, session->last_packet_acked);
       send_packet(from_ip, sock, &cur_header, filebuf, config->mysock);
@@ -646,17 +652,33 @@ void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen
 /*
  *
  */
-void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen, int BUFLEN, bt_config_t *config, packet_h *header){
+void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen, int BUFLEN, bt_config_t *config, packet_h *header, int recv_size){
   /*
     todos:
-    1. need to parse the packet and strip away the header
     2. need to put the packet somewhere, and track all the packets
     3. if received all chunks, need to create a new file
     4. send the ACK packet
     5. need to release dynamic memeory like config->udp_sender_session
    */
+  vector *sender_sessions = &config->sender_sessions;
+  char *ip = inet_ntoa(from.sin_addr);
+  udp_sender_session *session = find_sender_session(sender_sessions, ip, sock);
+  packet_h curheader;
+  memcpy(session->data + session->buf_size, buf, recv_size - PACK_HEADER_BASE_LEN);
+  if ((session->last_packet_acked + 1) == (short)header->seqNo){
+    build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0, session->last_packet_acked + 1);
+  }else{
+    build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0, session->last_packet_acked);
+  }
+  /* send ACK packet */
+  send_packet(ip, sock, &curheader, NULL, config->mysock);
 
-  
+  if ((recv_size - PACK_HEADER_BASE_LEN) < UDP_MAX_PACK_SIZE){
+    // more packets to go
+  }else{
+    // last packets
+  }
+  session->buf_size += recv_size - PACK_HEADER_BASE_LEN;
   return;
 }
 
@@ -694,7 +716,7 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
     process_peer_get(sock, buf + header->headerLen, from, fromlen, BUFLEN, config, header);
   }else if (header->packType == 3){
     //todo: process data packet
-    process_data(sock, buf + header->headerLen, from, fromLen, BUFLEN, config, header);
+    process_data(sock, buf + header->headerLen, from, fromlen, BUFLEN, config, header, recv_size);
   }else if (header->packType == 4){
     //todo: ack packet
     process_ack(sock, buf + header->headerLen, from, fromlen, BUFLEN, config, header);
@@ -841,7 +863,7 @@ peers_t *load_peers(bt_config_t *config){
  */
 vector *build_query(vector *filtered_chunks, unsigned int chunks_num){
   vector *res = (vector*)malloc(sizeof(vector));
-  init_vector(res, UDP_MAX_PACK_SIZE);
+  init_vector(res, UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN);
   int cnt = 0;
 
   while(chunks_num > 0){

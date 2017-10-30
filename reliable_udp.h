@@ -25,6 +25,8 @@ typedef struct udp_sender_session{
   short sock;
   char *chunk_hash;
   char *data;
+  /* the size of stored data */
+  int buf_size;
 }udp_sender_session;
 
 /*
