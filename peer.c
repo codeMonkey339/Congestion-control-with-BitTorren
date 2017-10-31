@@ -161,10 +161,10 @@ void build_packet(packet_h *header, char *query, char *msg){
  *
  * given the packet header & packet body, send the packet to recipient
  */
-void send_packet(char *ip, int port, packet_h *header, char *query, int mysock){
+void send_packet(char *ip, int port, packet_h *header, char *query, int mysock, int body_size){
   char *msg = (char*)malloc(header->packLen + strlen(query));
   build_packet(header, query, msg);
-  send_udp_packet_with_sock(ip, port, msg, mysock, header->packLen + strlen(query));
+  send_udp_packet_with_sock(ip, port, msg, mysock, header->packLen + body_size);
   free(msg);
   return;
 }
@@ -183,7 +183,7 @@ void request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx){
   build_header(&header, 15441, 1, 2, PACK_HEADER_BASE_LEN, PACK_HEADER_BASE_LEN + strlen(query), 0, 0);
   packet = (char*)malloc(PACK_HEADER_BASE_LEN + strlen(query));
   peer_info_t *peer = get_peer_info(config->peer, peer_idx);
-  send_packet(peer->ip, peer->port, &header, query, config->mysock);
+  send_packet(peer->ip, peer->port, &header, query, config->mysock, strlen(query));
   free(query);
   free(packet);
   return;
@@ -316,10 +316,9 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
   port = ntohs(from.sin_port);
   packet_h reply_header;
   build_header(&reply_header, 15441, 1, 1, PACK_HEADER_BASE_LEN, PACK_HEADER_BASE_LEN + strlen(reply_msg), 0, 0);
-  send_packet(ip, port, &reply_header, reply_msg, config->mysock);
+  send_packet(ip, port, &reply_header, reply_msg, config->mysock, strlen(reply_msg));
   free(reply);
   free(reply_msg);
-  free(header);
   return;
 }
 
@@ -383,6 +382,7 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
         }
       }
     }
+    vec_add(&chunks, &chunk_info);
   }
   vec_sort(&chunks, chunks_dis_cmp);
   time_t t;
@@ -406,8 +406,8 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
     vec_free(&((chunk_dis*)vec_get(&chunks, i))->idx);
   }
   vec_free(&chunks);
-  release_all_timers(config);
-  release_all_dynamic_memory(config);
+  //release_all_timers(config);
+  //release_all_dynamic_memory(config);
   return;
 }
 
@@ -479,7 +479,7 @@ void process_ihave(int sock, char *buf, struct sockaddr_in from,
   vec_add(ihave_msgs, ihave);
   remove_timer(&config->whohas_timers, ip, sock);
   /* have received the replies from all peers */
-  if (ihave_msgs->len == config->peer->peer.len){
+  if (ihave_msgs->len == config->desired_chunks.len){
     send_get_queries(config, ihave_msgs);
   }
   free(buf_backup);
@@ -605,6 +605,7 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
   from_ip = inet_ntoa(from.sin_addr);
   if ((session = find_session(from_ip, sock, &config->sessions)) == NULL){
     session = (udp_session*)malloc(sizeof(udp_session));
+    memset(session, 0, sizeof(udp_session));
   }
   if ((session->last_packet_sent - session->last_packet_acked) < DEFAULT_WINDOW_SIZE){
     token = strtok(buf_backup, " ");
@@ -619,15 +620,18 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
     }
     fseek(f1, chunk_idx * CHUNK_LEN, SEEK_SET);
     memset(filebuf, 0, PACK_HEADER_BASE_LEN);
-    //todo: 500KB will be sent through multiple packets, here code is wrong
-    if ((packSize = fread(filebuf, 1, PACK_HEADER_BASE_LEN, f1)) > 0){
-      build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize, session->last_packet_sent + 1, session->last_packet_acked);
-      send_packet(from_ip, sock, &cur_header, filebuf, config->mysock);
-      session->last_packet_sent++;
-      add_timer(&config->whohas_timers, from_ip, sock, &cur_header, filebuf);
-    }else{
-      fprintf(stderr, "Failed to read packet from master file %s\n", masterfile);
-      exit(1);
+    // sending binary data?
+    while((session->last_packet_sent - session->last_packet_acked) < DEFAULT_WINDOW_SIZE){
+      if ((packSize = fread(filebuf, 1, UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN, f1)) > 0){
+        build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize,
+                     session->last_packet_sent + 1, session->last_packet_acked);
+        send_packet(from_ip, sock, &cur_header, filebuf, config->mysock, packSize);
+        session->last_packet_sent++;
+        add_timer(&config->whohas_timers, from_ip, sock, &cur_header, filebuf);
+      }else{
+        fprintf(stderr, "Failed to read packet from master file %s\n", masterfile);
+        exit(1);
+      }
     }
   }else{
     //todo: there have been enough pending packets, what todo?
@@ -644,6 +648,7 @@ void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen
     1. need to release timer
     2. send ACK packet
     3. check whether have received all packets?
+    4. check if there are still remaining packets to send?
    */
   
   return;
@@ -655,9 +660,7 @@ void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen
 void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen, int BUFLEN, bt_config_t *config, packet_h *header, int recv_size){
   /*
     todos:
-    2. need to put the packet somewhere, and track all the packets
     3. if received all chunks, need to create a new file
-    4. send the ACK packet
     5. need to release dynamic memeory like config->udp_sender_session
    */
   vector *sender_sessions = &config->sender_sessions;
@@ -671,7 +674,7 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
     build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0, session->last_packet_acked);
   }
   /* send ACK packet */
-  send_packet(ip, sock, &curheader, NULL, config->mysock);
+  send_packet(ip, sock, &curheader, NULL, config->mysock, 0);
 
   if ((recv_size - PACK_HEADER_BASE_LEN) < UDP_MAX_PACK_SIZE){
     // more packets to go
@@ -906,7 +909,7 @@ void flood_peers_query(peers_t *peers, vector *queries, bt_config_t *config){
     header.ackNo = 0;
     for (int i = 0; i < peers->peer.len; i++){
       peer_info_t *peer = (peer_info_t*)vec_get(&peers->peer, i);
-      send_packet(peer->ip, peer->port, &header, query, config->mysock);
+      send_packet(peer->ip, peer->port, &header, query, config->mysock, strlen(query));
       add_timer(&config->whohas_timers, peer->ip, peer->port, NULL, query);
     }
   }
@@ -1032,8 +1035,6 @@ void peer_run(bt_config_t *config) {
   struct sockaddr_in myaddr;
   fd_set readfds;
   struct user_iobuf *userbuf;
-  /* this vector should be placed in config */
-  vector ihave_msgs;
 
   if ((userbuf = create_userbuf()) == NULL) {
     perror("peer_run could not allocate userbuf");
@@ -1071,12 +1072,12 @@ void peer_run(bt_config_t *config) {
     nfds = select(sock+1, &readfds, NULL, NULL, NULL);
     if (nfds > 0) {
       if (FD_ISSET(sock, &readfds)) {
-	process_inbound_udp(sock, config, &ihave_msgs);
+	process_inbound_udp(sock, config, &config->ihave_msgs);
       }
 
       if (FD_ISSET(STDIN_FILENO, &readfds)) {
 	process_user_input(STDIN_FILENO, userbuf, handle_user_input,
-			   "Currently unused", config, &ihave_msgs);
+			   "Currently unused", config, &config->ihave_msgs);
       }
     }
     check_for_timeouts(config);
