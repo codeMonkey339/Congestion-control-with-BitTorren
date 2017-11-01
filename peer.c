@@ -79,7 +79,19 @@ void build_session(udp_session *session, short last_packet_sent, short last_pack
   return;
 }
 
+/*
+  vector *sender_sessions: the vector to store all the current sessions
+  char *ip: the ip address of the incoming message
+
+  identify the sender session that store the current reliabel communication
+ */
 udp_sender_session *find_sender_session(vector *sender_sessions, char *ip, int sock){
+  for (int i = 0; i < sender_sessions->len; i++){
+    udp_sender_session *sender_session = (udp_sender_session*)vec_get(sender_sessions, i);
+    if (!strcmp(sender_session->ip, ip) && sender_session->sock == sock){
+      return sender_session;
+    }
+  }
   return NULL;
 }
 
@@ -151,7 +163,9 @@ void build_packet(packet_h *header, char *query, char *msg){
   memcpy(msg + 8, &seqNo, 4);
   memcpy(msg + 12, &ackNo, 4);
   //todo: possibly there are extended headers
-  memcpy(msg + header->headerLen, query, strlen(query));
+  if (query != NULL){
+    memcpy(msg + header->headerLen, query, strlen(query));    
+  }
   return;
 }
 
@@ -162,7 +176,13 @@ void build_packet(packet_h *header, char *query, char *msg){
  * given the packet header & packet body, send the packet to recipient
  */
 void send_packet(char *ip, int port, packet_h *header, char *query, int mysock, int body_size){
-  char *msg = (char*)malloc(header->packLen + strlen(query));
+  char *msg;
+  if (query != NULL){
+    msg = (char*)malloc(header->packLen + strlen(query));
+  }else{
+    msg = (char*)malloc(header->packLen);
+  }
+
   build_packet(header, query, msg);
   send_udp_packet_with_sock(ip, port, msg, mysock, header->packLen + body_size);
   free(msg);
@@ -529,7 +549,7 @@ int find_chunk_idx(char *chunk, char *chunk_file, char *masterfile){
         }
       }
     }else{ /* chunk hash line */
-      idx = *(int*)t;
+      idx = atoi(t);
       t = strtok(NULL, " ");
       if (!strcmp(t, chunk) || strstr(t, chunk) != NULL){
         chunk_idx = idx;
@@ -600,6 +620,7 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
   size_t packSize = 0;
   packet_h cur_header;
   udp_session *session = NULL;
+  short port = ntohs(from.sin_port);
   memset(buf_backup, 0, strlen(buf) + 1);
   strcpy(buf_backup, buf);
   from_ip = inet_ntoa(from.sin_addr);
@@ -625,7 +646,7 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
       if ((packSize = fread(filebuf, 1, UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN, f1)) > 0){
         build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize,
                      session->last_packet_sent + 1, session->last_packet_acked);
-        send_packet(from_ip, sock, &cur_header, filebuf, config->mysock, packSize);
+        send_packet(from_ip, port, &cur_header, filebuf, config->mysock, packSize);
         session->last_packet_sent++;
         add_timer(&config->whohas_timers, from_ip, sock, &cur_header, filebuf);
       }else{
@@ -665,7 +686,11 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
    */
   vector *sender_sessions = &config->sender_sessions;
   char *ip = inet_ntoa(from.sin_addr);
-  udp_sender_session *session = find_sender_session(sender_sessions, ip, sock);
+  int port = ntohs(from.sin_port);
+  udp_sender_session *session;
+  if ((session = find_sender_session(sender_sessions, ip, port)) == NULL){
+    fprintf(stderr, "Cannot find stored session for ip %s & port %d\n", ip, port);
+  }
   packet_h curheader;
   memcpy(session->data + session->buf_size, buf, recv_size - PACK_HEADER_BASE_LEN);
   if ((session->last_packet_acked + 1) == (short)header->seqNo){
@@ -674,7 +699,7 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
     build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0, session->last_packet_acked);
   }
   /* send ACK packet */
-  send_packet(ip, sock, &curheader, NULL, config->mysock, 0);
+  send_packet(ip, port, &curheader, NULL, config->mysock, 0);
 
   if ((recv_size - PACK_HEADER_BASE_LEN) < UDP_MAX_PACK_SIZE){
     // more packets to go
