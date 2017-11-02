@@ -362,6 +362,9 @@ int chunks_dis_cmp(chunk_dis *dis1, chunk_dis *dis2){
 }
 
 
+/*
+  initialize the various fields of the sender session
+ */
 void build_udp_sender_session(udp_sender_session *session, int peer_id, char *chunk_hash, bt_config_t *config){
   peer_info_t *peer = get_peer_info(config->peer, peer_id);
   session->last_packet_acked = 0;
@@ -370,6 +373,7 @@ void build_udp_sender_session(udp_sender_session *session, int peer_id, char *ch
   session->sock = peer->port;
   strcpy(session->chunk_hash, chunk_hash);
   session->data = (char*)malloc(CHUNK_LEN);
+  session->data_complete = 0;
   return;
 }
 
@@ -671,6 +675,11 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
 void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen, int BUFLEN, bt_config_t *config, packet_h *header){
   /*
     todo:
+    check last ACKed packet no, If different, then update last acked
+    packet no. If not, then which message to send? At the same time,
+    once the last acked packet # is updated, then need to send new
+    packets as well.
+    
     1. need to release timer
     2. send ACK packet
     3. check whether have received all packets?
@@ -705,13 +714,32 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
   }
   /* send ACK packet */
   send_packet(ip, port, &curheader, NULL, config->mysock, 0);
-
-  if ((recv_size - PACK_HEADER_BASE_LEN) < UDP_MAX_PACK_SIZE){
+  session->buf_size += recv_size - PACK_HEADER_BASE_LEN;
+  if (recv_size >= UDP_MAX_PACK_SIZE){
     // more packets to go
   }else{
-    // last packets
+    //todo: need to check the hash of the received chunk
+    session->data_complete = 1;
+    int all_data_received = 1;
+    for (int i = 0; i < sender_sessions->len; i++){
+      udp_sender_session *cur_session = (udp_sender_session*)vec_get(sender_sessions, i);
+      if (!cur_session->data_complete){
+        all_data_received = 0;
+        break;
+      }
+    }
+    if (all_data_received){
+      FILE *newfile;
+      if ((newfile = fopen(config->output_file, "w")) == NULL){
+        fprintf(stderr, "Failed to create the new file %s\n", config->output_file);
+        exit(1);
+      }
+      for (int i = 0; i < sender_sessions->len; i++){
+        udp_sender_session *cur_session = (udp_sender_session*)vec_get(sender_sessions, i);
+        fwrite(cur_session->data, 1, cur_session->buf_size, newfile);
+      }
+    }
   }
-  session->buf_size += recv_size - PACK_HEADER_BASE_LEN;
   return;
 }
 

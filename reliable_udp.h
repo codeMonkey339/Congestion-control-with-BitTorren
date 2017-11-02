@@ -27,6 +27,7 @@ typedef struct udp_sender_session{
   char *data;
   /* the size of stored data */
   int buf_size;
+  uint8_t data_complete;
 }udp_sender_session;
 
 /*
