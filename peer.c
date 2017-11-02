@@ -109,7 +109,11 @@ packet_h * parse_packet(char **buf){
     return NULL;
   }
   //todo: possible extension of packet header
-  *buf = start + header->headerLen;
+  if (header->packLen != header->headerLen){
+    *buf = start + header->headerLen;
+  }else{
+    *buf = NULL;
+  }
   return header;
 }
 
@@ -178,13 +182,13 @@ void build_packet(packet_h *header, char *query, char *msg){
 void send_packet(char *ip, int port, packet_h *header, char *query, int mysock, int body_size){
   char *msg;
   if (query != NULL){
-    msg = (char*)malloc(header->packLen + strlen(query));
+    msg = (char*)malloc(header->headerLen + body_size);
   }else{
-    msg = (char*)malloc(header->packLen);
+    msg = (char*)malloc(header->headerLen);
   }
 
   build_packet(header, query, msg);
-  send_udp_packet_with_sock(ip, port, msg, mysock, header->packLen + body_size);
+  send_udp_packet_with_sock(ip, port, msg, mysock, header->headerLen + body_size);
   free(msg);
   return;
 }
@@ -198,6 +202,7 @@ void send_packet(char *ip, int port, packet_h *header, char *query, int mysock, 
 void request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx){
   packet_h header;
   char *query = (char*)malloc(strlen("GET") + CHUNK_HASH_SIZE + 2), *packet;
+  memset(query, 0, strlen("GET") + CHUNK_HASH_SIZE + 2);
   strcat(query, "GET ");
   strcat(query, chunk_msg);
   build_header(&header, 15441, 1, 2, PACK_HEADER_BASE_LEN, PACK_HEADER_BASE_LEN + strlen(query), 0, 0);
@@ -736,6 +741,10 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
   memcpy(buf_backup, buf, BUFLEN);
   buf_backup_ptr = buf_backup;
   packet_h* header = parse_packet(&buf_backup);
+  if (header == NULL){
+    fprintf(stderr, "Have received an invalid packet \n");
+    return;
+  }
   if (header->packType == 0){
     process_whohas(sock, buf + header->headerLen, from, fromlen, BUFLEN, config, header);
   }else if (header->packType == 1){
