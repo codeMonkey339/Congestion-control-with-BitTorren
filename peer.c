@@ -595,6 +595,33 @@ void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *fileb
 }
 
 /*
+  based on the last_packet_sent & last_packet_acked & window size,
+  send pakcets that are within available window
+ */
+void send_packets_in_range(udp_session *session, FILE *f1, char *from_ip, int port, bt_config_t *config){
+  char filebuf[UDP_MAX_PACK_SIZE];
+  int packSize = 0;
+  packet_h cur_header;
+
+  // sending binary data?
+  memset(filebuf, 0, UDP_MAX_PACK_SIZE);
+  memset(&cur_header, 0, sizeof(packet_h));
+  while((session->last_packet_sent - session->last_packet_acked) < DEFAULT_WINDOW_SIZE){
+    if ((packSize = fread(filebuf, 1, UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN, f1)) > 0){
+      build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize,
+                   session->last_packet_sent + 1, session->last_packet_acked);
+      send_packet(from_ip, port, &cur_header, filebuf, config->mysock, packSize);
+      session->last_packet_sent++;
+      add_timer(&config->whohas_timers, from_ip, port, &cur_header, filebuf);
+    }else{
+      fprintf(stderr, "Failed to read packet from File descriptor %p\n", f1);
+      exit(1);
+    }
+  }
+  return;
+}
+
+/*
   need to send DATA packet through reliable communication
 
   Chunk File: i.e c.masterchunks
@@ -626,14 +653,12 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
   FILE *f1;
   char *buf_backup = (char*)malloc(strlen(buf) + 1), *token, masterfile[BT_FILENAME_LEN], filebuf[UDP_MAX_PACK_SIZE], *from_ip;
   int chunk_idx;
-  size_t packSize = 0;
-  packet_h cur_header;
   udp_session *session = NULL;
   short port = ntohs(from.sin_port);
   memset(buf_backup, 0, strlen(buf) + 1);
   strcpy(buf_backup, buf);
   from_ip = inet_ntoa(from.sin_addr);
-  if ((session = find_session(from_ip, sock, &config->sessions)) == NULL){
+  if ((session = find_session(from_ip, port, &config->sessions)) == NULL){
     session = (udp_session*)malloc(sizeof(udp_session));
     memset(session, 0, sizeof(udp_session));
   }
@@ -650,19 +675,8 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
     }
     fseek(f1, chunk_idx * CHUNK_LEN, SEEK_SET);
     memset(filebuf, 0, PACK_HEADER_BASE_LEN);
-    // sending binary data?
-    while((session->last_packet_sent - session->last_packet_acked) < DEFAULT_WINDOW_SIZE){
-      if ((packSize = fread(filebuf, 1, UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN, f1)) > 0){
-        build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize,
-                     session->last_packet_sent + 1, session->last_packet_acked);
-        send_packet(from_ip, port, &cur_header, filebuf, config->mysock, packSize);
-        session->last_packet_sent++;
-        add_timer(&config->whohas_timers, from_ip, sock, &cur_header, filebuf);
-      }else{
-        fprintf(stderr, "Failed to read packet from master file %s\n", masterfile);
-        exit(1);
-      }
-    }
+    session->chunk_index = chunk_idx;
+    send_packets_in_range(session, f1, from_ip, port, config);
   }else{
     //todo: there have been enough pending packets, what todo?
   }
@@ -685,7 +699,24 @@ void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen
     3. check whether have received all packets?
     4. check if there are still remaining packets to send?
    */
-  
+  char *from_ip = inet_ntoa(from.sin_addr), file_buf[UDP_MAX_PACK_SIZE];
+  short port = ntohs(from.sin_port);
+  memset(file_buf, 0, UDP_MAX_PACK_SIZE);
+  udp_session *session = find_session(from_ip, port, &config->sessions);
+  if (header->ackNo == (unsigned int)(session->last_packet_acked + 1)){
+    fseek(session->f, session->chunk_index * CHUNK_LEN + header->ackNo * (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN), SEEK_SET);
+    /*
+      todo: how should packets be sent here?
+      problems: if increase the window size 1 by 1, and send the
+      latest available window slot. Then if everything goes smooth,
+      the efficiency is ok. When there is one packet lost, timeout
+      will trigger sending a duplcite packet, but packets received
+      after that packet will all be lost???
+     */
+    
+  }else{
+    // send the same packet 
+  }
   return;
 }
 

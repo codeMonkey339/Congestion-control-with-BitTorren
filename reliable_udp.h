@@ -33,6 +33,8 @@ typedef struct udp_sender_session{
 /*
   simulate a tcp-like connection session to implement reliable
   delivery and traffic control
+
+  should there be a window to record the packet # that has been received?
  */
 typedef struct udp_session{
   short last_packet_sent;
@@ -50,6 +52,7 @@ typedef struct udp_session{
   /* port of the recipient udp socket */
   short sock;
   char *chunk_hash;
+  short chunk_index;
   char *data;
   //char *buf; /* buffer to hold necessary sent chunks */
 }udp_session;
