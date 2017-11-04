@@ -685,6 +685,19 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
 
 /*
   Based on acknowledgements from peers, take next step actions
+
+  impl notes:
+  any incoming packet has to be within the window in order to be accepted.
+  sender:
+  keep a buffer of packets, and an array of indexes, flag the index whenever a packet is acknowledged. When all packets are acknowledged, move the window forward and reset the array.
+  whenever a timeout occurs, re-send all the packets from the timeout packet till the end of the buffered packets in the window
+  receiver:
+  keep an array of indexes, whenever a packet is received, flag the index in the array, and check for the largeste ackNo. If there are consecutive indexes, then move the window forward accordingly, and reset the array of indexes. There is no buffer needed since every chunk is of fixed size.
+		
+  Need to pay attention to the size of sequence # space & sliding window size 
+  Need to choose a sequence space
+  The sending procedure is blocking: use a semaphore to block sending attempt
+  How to design the time out system?
  */
 void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen, int BUFLEN, bt_config_t *config, packet_h *header){
   /*
