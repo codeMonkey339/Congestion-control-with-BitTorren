@@ -27,6 +27,7 @@
 #include <netdb.h>
 #include <errno.h>
 #include "packet.h"
+#include <math.h>
 
 
 
@@ -83,6 +84,7 @@ void init_session(udp_session *session, short send_window, short recv_window, in
   session->f = f;
   strcpy(session->ip, from_ip);
   session->sock = port;
+  session->total_packets = ceil(CHUNK_LEN / (UDP_MAX_PACK_SIZE - CHUNK_HASH_SIZE));
   for (uint32_t i = 0; i < sizeof(session->index)/sizeof(uint32_t); i++){
     session->index[i] = 0;
   }
@@ -169,6 +171,7 @@ void request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx){
   packet = (char*)malloc(PACK_HEADER_BASE_LEN + strlen(query));
   peer_info_t *peer = get_peer_info(config->peer, peer_idx);
   send_packet(peer->ip, peer->port, &header, query, config->mysock, strlen(query));
+  // todo: need to add timer here just in case peer doesn't reply.
   free(query);
   free(packet);
   return;
@@ -373,6 +376,7 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
     }
     vec_add(&chunks, &chunk_info);
   }
+  //todo: need to complete the sorting function
   vec_sort(&chunks, chunks_dis_cmp);
   time_t t;
   srand((unsigned)time(&t));
@@ -593,58 +597,42 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
 
 /*
   Based on acknowledgements from peers, take next step actions
-
-  impl notes:
-  any incoming packet has to be within the window in order to be accepted.
-  sender:
-  keep a buffer of packets, and an array of indexes, flag the index whenever a packet is acknowledged. When all packets are acknowledged, move the window forward and reset the array.
-  whenever a timeout occurs, re-send all the packets from the timeout packet till the end of the buffered packets in the window
-  receiver:
-  keep an array of indexes, whenever a packet is received, flag the index in the array, and check for the largeste ackNo. If there are consecutive indexes, then move the window forward accordingly, and reset the array of indexes. There is no buffer needed since every chunk is of fixed size.
-
 */
 void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen, int BUFLEN, bt_config_t *config, packet_h *header){
-  /*
-    todo:
-    check last ACKed packet no, If different, then update last acked
-    packet no. If not, then which message to send? At the same time,
-    once the last acked packet # is updated, then need to send new
-    packets as well.
-    
-    1. need to release timer
-    2. send ACK packet
-    3. check whether have received all packets?
-    4. check if there are still remaining packets to send?
-   */
   char *from_ip = inet_ntoa(from.sin_addr), file_buf[UDP_MAX_PACK_SIZE];
   short port = ntohs(from.sin_port);
   memset(file_buf, 0, UDP_MAX_PACK_SIZE);
   udp_session *session = find_session(from_ip, port, &config->sessions);
-  if (header->ackNo == (unsigned int)(session->last_packet_acked + 1)){
-    /*
-      problems: if increase the window size 1 by 1, and send the
-      latest available window slot. Then if everything goes smooth,
-      the efficiency is ok. When there is one packet lost, timeout
-      will trigger sending a duplcite packet, but packets received
-      after that packet will all be lost???
-     */
-    fseek(session->f, session->chunk_index * CHUNK_LEN + header->ackNo * (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN), SEEK_SET);
+  if (header->ackNo == (uint32_t)(session->last_packet_acked + 1)){
     session->last_packet_acked++;
+    session->dup_ack = 0;
+    fseek(session->f, session->chunk_index * CHUNK_LEN + header->ackNo * (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN), SEEK_SET);
     send_udp_packet_r(session, from_ip, port, config->mysock, 0);
-    //todo: check whether has sent all packets?
-  }else{
-    /*
-      1.remove the old timer?
-      2.send the repeated packet
-      3.increase the repeat times
-      4.install the new timer
-     */
+    if (header->ackNo == session->total_packets){
+      //todo: all packets sent, need to clean up the session
+    }
+  }else if (header->ackNo == (uint32_t)(session->last_packet_sent)){
+    /* current repeat times is 5 */
+    session->dup_ack++;
+    if (session->dup_ack > 5){
+      // todo: the peer is crashes, how to recover?
+    }else{
+      fseek(session->f, session->chunk_index * CHUNK_LEN + session->last_packet_acked * (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN), SEEK_SET);
+      send_udp_packet_r(session, from_ip, port, config->mysock, 1);
+    }
   }
   return;
 }
 
 /*
- *
+ impl notes:
+ any incoming packet has to be within the window in order to be accepted.
+ sender:
+ keep a buffer of packets, and an array of indexes, flag the index whenever a packet is acknowledged. When all packets are acknowledged, move the window forward and reset the array.
+ whenever a timeout occurs, re-send all the packets from the timeout packet till the end of the buffered packets in the window
+ receiver:
+ keep an array of indexes, whenever a packet is received, flag the index in the array, and check for the largeste ackNo. If there are consecutive indexes, then move the window forward accordingly, and reset the array of indexes. There is no buffer needed since every chunk is of fixed size.
+
  */
 void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen, int BUFLEN, bt_config_t *config, packet_h *header, int recv_size){
   /*

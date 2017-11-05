@@ -58,6 +58,7 @@ typedef struct udp_session{
   char *chunk_hash;
   short chunk_index;
   char *data;
+  uint32_t total_packets;
   uint32_t index[DEFAULT_WINDOW_SIZE];
   /* timers for sent packets */
   vector timers;
