@@ -85,11 +85,11 @@ void build_session(udp_session *session, short last_packet_sent, short last_pack
 
   identify the sender session that store the current reliabel communication
  */
-udp_sender_session *find_sender_session(vector *sender_sessions, char *ip, int sock){
-  for (int i = 0; i < sender_sessions->len; i++){
-    udp_sender_session *sender_session = (udp_sender_session*)vec_get(sender_sessions, i);
-    if (!strcmp(sender_session->ip, ip) && sender_session->sock == sock){
-      return sender_session;
+udp_recv_session *find_recv_session(vector *recv_sessions, char *ip, int sock){
+  for (int i = 0; i < recv_sessions->len; i++){
+    udp_recv_session *recv_session = (udp_recv_session*)vec_get(recv_sessions, i);
+    if (!strcmp(recv_session->ip, ip) && recv_session->sock == sock){
+      return recv_session;
     }
   }
   return NULL;
@@ -365,7 +365,7 @@ int chunks_dis_cmp(chunk_dis *dis1, chunk_dis *dis2){
 /*
   initialize the various fields of the sender session
  */
-void build_udp_sender_session(udp_sender_session *session, int peer_id, char *chunk_hash, bt_config_t *config){
+void build_udp_recv_session(udp_recv_session *session, int peer_id, char *chunk_hash, bt_config_t *config){
   peer_info_t *peer = get_peer_info(config->peer, peer_id);
   session->last_packet_acked = 0;
   session->peer_id = peer_id;
@@ -419,14 +419,14 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
   for (int i = 0; i < chunks.len ;i++){
     chunk_dis *chunk_info = (chunk_dis*)vec_get(&chunks, i);
     char *chunk_msg = chunk_info->msg;
-    udp_sender_session *session = (udp_sender_session*)malloc(sizeof(udp_sender_session));
+    udp_recv_session *session = (udp_recv_session*)malloc(sizeof(udp_recv_session));
     /*
       naive implementation here, randomly pick a peer from the list
     */
     int idx = rand() % chunk_info->idx.len;
     int peer_idx = *(short*)vec_get(&chunk_info->idx, idx);
-    build_udp_sender_session(session, peer_idx, chunk_msg, config);
-    vec_add(&config->sender_sessions, session);
+    build_udp_recv_session(session, peer_idx, chunk_msg, config);
+    vec_add(&config->recv_sessions, session);
     request_chunk(config, chunk_msg, peer_idx);
   }
 
@@ -693,10 +693,16 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
   whenever a timeout occurs, re-send all the packets from the timeout packet till the end of the buffered packets in the window
   receiver:
   keep an array of indexes, whenever a packet is received, flag the index in the array, and check for the largeste ackNo. If there are consecutive indexes, then move the window forward accordingly, and reset the array of indexes. There is no buffer needed since every chunk is of fixed size.
-		
-  Need to pay attention to the size of sequence # space & sliding window size 
+	
+  Need to pay attention to the size of sequence # space & sliding
+  window size
+  
   Need to choose a sequence space
-  The sending procedure is blocking: use a semaphore to block sending attempt
+  The sending procedure is blocking: use a semaphore to block sending
+  attempt. In TCP, the sending process is in an indefinite loop to
+  send all packets, at the same time it will employ multi-threaded
+  programming to fork a new thread for each incoming connection
+  
   How to design the time out system?
  */
 void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen, int BUFLEN, bt_config_t *config, packet_h *header){
@@ -742,11 +748,11 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
     3. if received all chunks, need to create a new file
     5. need to release dynamic memeory like config->udp_sender_session
    */
-  vector *sender_sessions = &config->sender_sessions;
+  vector *recv_sessions = &config->recv_sessions;
   char *ip = inet_ntoa(from.sin_addr);
   int port = ntohs(from.sin_port);
-  udp_sender_session *session;
-  if ((session = find_sender_session(sender_sessions, ip, port)) == NULL){
+  udp_recv_session *session;
+  if ((session = find_recv_session(recv_sessions, ip, port)) == NULL){
     fprintf(stderr, "Cannot find stored session for ip %s & port %d\n", ip, port);
   }
   packet_h curheader;
@@ -765,8 +771,8 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
     //todo: need to check the hash of the received chunk
     session->data_complete = 1;
     int all_data_received = 1;
-    for (int i = 0; i < sender_sessions->len; i++){
-      udp_sender_session *cur_session = (udp_sender_session*)vec_get(sender_sessions, i);
+    for (int i = 0; i < recv_sessions->len; i++){
+      udp_recv_session *cur_session = (udp_recv_session*)vec_get(recv_sessions, i);
       if (!cur_session->data_complete){
         all_data_received = 0;
         break;
@@ -778,8 +784,8 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
         fprintf(stderr, "Failed to create the new file %s\n", config->output_file);
         exit(1);
       }
-      for (int i = 0; i < sender_sessions->len; i++){
-        udp_sender_session *cur_session = (udp_sender_session*)vec_get(sender_sessions, i);
+      for (int i = 0; i < recv_sessions->len; i++){
+        udp_recv_session *cur_session = (udp_recv_session*)vec_get(recv_sessions, i);
         fwrite(cur_session->data, 1, cur_session->buf_size, newfile);
       }
     }
@@ -930,7 +936,7 @@ peers_t *load_peers(bt_config_t *config){
   init_vector(&peers->peer, sizeof(peer_info_t));
   init_vector(&config->sessions, sizeof(udp_session));
   init_vector(&config->desired_chunks, CHUNK_HASH_SIZE);
-  init_vector(&config->sender_sessions, sizeof(udp_sender_session));
+  init_vector(&config->recv_sessions, sizeof(udp_recv_session));
   if ((f = fopen(peer_list_file, "r")) == NULL){
     fprintf(stderr, "Failed to open peer_list_file %s\n", peer_list_file);
     return NULL;

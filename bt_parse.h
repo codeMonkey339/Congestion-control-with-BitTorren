@@ -63,7 +63,7 @@ struct bt_config_s {
   /* udp sessions between host & its peers */
   vector sessions;
   /* sender sessions */
-  vector sender_sessions;
+  vector recv_sessions;
 };
 typedef struct bt_config_s bt_config_t;
 

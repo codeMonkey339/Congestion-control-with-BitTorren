@@ -20,6 +20,7 @@
 
 typedef struct udp_sender_session{
   short last_packet_acked;
+  short last_acceptable_frame;
   short peer_id;
   char ip[IP_STR_LEN];
   short sock;
@@ -28,7 +29,7 @@ typedef struct udp_sender_session{
   /* the size of stored data */
   int buf_size;
   uint8_t data_complete;
-}udp_sender_session;
+}udp_recv_session;
 
 /*
   simulate a tcp-like connection session to implement reliable

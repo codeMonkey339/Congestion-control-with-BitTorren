@@ -24,7 +24,9 @@ typedef struct packet_h{
   uint16_t headerLen;
   /* total packet length */
   uint16_t packLen;
-  /* sequence number for congestion control & reliable transmission */
+  /* sequence number for congestion control & reliable transmission,
+     don't have to consider sequence space since there will be at
+     most 500/1.5 # of packets in a reliable communication session */
   uint32_t seqNo;
   /* acknowledge number for congestion control & reliable transmission */
   uint32_t ackNo;
