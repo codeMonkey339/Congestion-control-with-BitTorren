@@ -586,10 +586,8 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
   if (session->f== NULL){ // init session struct
     init_session(session, 8, 8, config->identity, 0, f1, from_ip, sock);
   }
-  fseek(f1, chunk_idx * CHUNK_LEN, SEEK_SET);
   session->chunk_index = chunk_idx;
-  send_udp_packet_r(session, f1, from_ip, port, config->mysock);
-
+  send_udp_packet_r(session, from_ip, port, config->mysock, 0);
   return;
 }
 
@@ -603,18 +601,8 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
   whenever a timeout occurs, re-send all the packets from the timeout packet till the end of the buffered packets in the window
   receiver:
   keep an array of indexes, whenever a packet is received, flag the index in the array, and check for the largeste ackNo. If there are consecutive indexes, then move the window forward accordingly, and reset the array of indexes. There is no buffer needed since every chunk is of fixed size.
-	
-  Need to pay attention to the size of sequence # space & sliding
-  window size
-  
-  Need to choose a sequence space
-  The sending procedure is blocking: use a semaphore to block sending
-  attempt. In TCP, the sending process is in an indefinite loop to
-  send all packets, at the same time it will employ multi-threaded
-  programming to fork a new thread for each incoming connection
-  
-  How to design the time out system?
- */
+
+*/
 void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen, int BUFLEN, bt_config_t *config, packet_h *header){
   /*
     todo:
@@ -633,18 +621,24 @@ void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen
   memset(file_buf, 0, UDP_MAX_PACK_SIZE);
   udp_session *session = find_session(from_ip, port, &config->sessions);
   if (header->ackNo == (unsigned int)(session->last_packet_acked + 1)){
-    fseek(session->f, session->chunk_index * CHUNK_LEN + header->ackNo * (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN), SEEK_SET);
     /*
-      todo: how should packets be sent here?
       problems: if increase the window size 1 by 1, and send the
       latest available window slot. Then if everything goes smooth,
       the efficiency is ok. When there is one packet lost, timeout
       will trigger sending a duplcite packet, but packets received
       after that packet will all be lost???
      */
-    
+    fseek(session->f, session->chunk_index * CHUNK_LEN + header->ackNo * (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN), SEEK_SET);
+    session->last_packet_acked++;
+    send_udp_packet_r(session, from_ip, port, config->mysock, 0);
+    //todo: check whether has sent all packets?
   }else{
-    // send the same packet 
+    /*
+      1.remove the old timer?
+      2.send the repeated packet
+      3.increase the repeat times
+      4.install the new timer
+     */
   }
   return;
 }

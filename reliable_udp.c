@@ -68,7 +68,8 @@ void send_udp_packet_with_sock(char *ip, int port_no, char *msg, int sock, int s
   2. when a timeout occurs
   in both of these 2 cases, need to send all the packets from last acked.
  */
-void send_udp_packet_r(udp_session *session, FILE *f1, char *from_ip, int port, int mysock){
+void send_udp_packet_r(udp_session *session, char *from_ip, int port,
+                       int mysock, int timeout){
   if ((session->last_packet_sent - session->last_packet_acked) < DEFAULT_WINDOW_SIZE){
     char filebuf[UDP_MAX_PACK_SIZE];
     int packSize = 0;
@@ -76,16 +77,36 @@ void send_udp_packet_r(udp_session *session, FILE *f1, char *from_ip, int port, 
     // sending binary data?
     memset(filebuf, 0, UDP_MAX_PACK_SIZE);
     memset(&cur_header, 0, sizeof(packet_h));
-    while((session->last_packet_sent - session->last_packet_acked) < DEFAULT_WINDOW_SIZE){
-      if ((packSize = fread(filebuf, 1, UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN, f1)) > 0){
-        build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize,
-                     session->last_packet_sent + 1, session->last_packet_acked);
-        send_packet(from_ip, port, &cur_header, filebuf, mysock, packSize);
-        session->last_packet_sent++;
-        add_timer(&session->timers, from_ip, port, &cur_header, filebuf);
-      }else{
-        fprintf(stderr, "Failed to read packet from File descriptor %p\n", f1);
-        exit(1);
+
+    if (!timeout){/* non-timeout */
+      fseek(session->f, session->chunk_index * CHUNK_LEN + (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN) * session->last_packet_sent, SEEK_SET);
+      while((session->last_packet_sent - session->last_packet_acked) < DEFAULT_WINDOW_SIZE){
+        if ((packSize = fread(filebuf, 1, UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN, session->f)) > 0){
+          build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize,
+                       session->last_packet_sent + 1, session->last_packet_acked);
+          send_packet(from_ip, port, &cur_header, filebuf, mysock, packSize);
+          session->last_packet_sent++;
+          add_timer(&session->timers, from_ip, port, &cur_header, filebuf);
+        }else{
+          fprintf(stderr, "Failed to read packet from File descriptor %p\n", session->f);
+          exit(1);
+        }
+      }
+    }else{/* timeout */
+      fseek(session->f, session->chunk_index * CHUNK_LEN + (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN) * session->last_packet_acked, SEEK_SET);
+      for (int i = session->last_packet_acked; i < session->last_packet_sent; i++){
+        if ((packSize = fread(filebuf, 1, UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN, session->f)) > 0){
+          build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize,
+                       i + 1, session->last_packet_acked);
+          send_packet(from_ip, port, &cur_header, filebuf, mysock, packSize);
+          if (i == 0){
+            /* only add timer for the repeated packet */
+            add_timer(&session->timers, from_ip, port, &cur_header, filebuf);
+          }
+        }else{
+          fprintf(stderr, "Failed to read packet from File descriptor %p\n", session->f);
+          exit(1);
+        }
       }
     }
   }else{

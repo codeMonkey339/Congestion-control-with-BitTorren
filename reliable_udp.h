@@ -66,8 +66,11 @@ typedef struct udp_session{
 
 void send_udp_packet(char *ip, int port, char *msg);
 void send_udp_packet_with_sock(char *ip, int port_no, char *msg, int sock, int size);
-void send_udp_packet_r(udp_session *session, FILE *f1, char *from_ip, int port, int mysock);
-void build_header(packet_h *header, int magicNo, int versionNo, int packType, int headerLen, int packLen, int seqNo, int ackNo);
-void send_packet(char *ip, int port, packet_h *header, char *query, int mysock, int body_size);
+void send_udp_packet_r(udp_session *session, char *from_ip, int port,
+                       int mysock, int timeout);
+void build_header(packet_h *header, int magicNo, int versionNo, int packType,
+                  int headerLen, int packLen, int seqNo, int ackNo);
+void send_packet(char *ip, int port, packet_h *header, char *query, int mysock,
+                 int body_size);
 void build_packet(packet_h *header, char *query, char *msg);
 #endif /* _RELIABLE_UDP_H */
