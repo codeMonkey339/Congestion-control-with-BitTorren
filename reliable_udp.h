@@ -15,6 +15,7 @@
 #include <netinet/in.h>
 #include <stdio.h>
 #include "utility.h"
+#include "packet.h"
 
 #define DEFAULT_WINDOW_SIZE 8
 
@@ -29,6 +30,8 @@ typedef struct udp_sender_session{
   /* the size of stored data */
   int buf_size;
   uint8_t data_complete;
+  /* indicate whether the packet has been received */
+  short recved_flags[DEFAULT_WINDOW_SIZE];
 }udp_recv_session;
 
 /*
@@ -55,10 +58,16 @@ typedef struct udp_session{
   char *chunk_hash;
   short chunk_index;
   char *data;
+  uint32_t index[DEFAULT_WINDOW_SIZE];
+  /* timers for sent packets */
+  vector timers;
   //char *buf; /* buffer to hold necessary sent chunks */
 }udp_session;
 
 void send_udp_packet(char *ip, int port, char *msg);
 void send_udp_packet_with_sock(char *ip, int port_no, char *msg, int sock, int size);
-void send_udp_packet_r(char *ip, int port, char *msg, int sock, int size);
+void send_udp_packet_r(udp_session *session, FILE *f1, char *from_ip, int port, int mysock);
+void build_header(packet_h *header, int magicNo, int versionNo, int packType, int headerLen, int packLen, int seqNo, int ackNo);
+void send_packet(char *ip, int port, packet_h *header, char *query, int mysock, int body_size);
+void build_packet(packet_h *header, char *query, char *msg);
 #endif /* _RELIABLE_UDP_H */

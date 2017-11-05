@@ -77,3 +77,25 @@ int read_from_sock(int sock, char *buf, int BUFLEN){
   }
   return len;
 }
+
+
+/*
+  add a new timer into the vector of timers
+*/
+void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf){
+  timer *cur_timer = (timer*)malloc(sizeof(timer));
+  cur_timer->start = clock();
+  cur_timer->repeat_times = 0;
+  strcpy(cur_timer->ip, ip);
+  cur_timer->sock = sock;
+  if (header == NULL){
+    cur_timer->msg = (char*)malloc(strlen(filebuf) + 1);
+    strcpy(cur_timer->msg, filebuf);
+  }else{
+    cur_timer->msg = (char*)malloc(sizeof(packet_h) + strlen(filebuf));
+    memcpy(cur_timer->msg, header, sizeof(packet_h));
+    memcpy(cur_timer->msg + sizeof(packet_h), filebuf, strlen(filebuf));
+  }
+  vec_add(timers, cur_timer);
+  return;
+}

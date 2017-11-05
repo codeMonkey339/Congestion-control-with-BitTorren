@@ -65,17 +65,28 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-void build_session(udp_session *session, short last_packet_sent, short last_packet_acked, short last_packet_available, short send_window, short recv_window, int peer_id, short dup_ack, FILE *f, char *from_ip, short sock){
-  session->last_packet_sent = last_packet_sent;
-  session->last_packet_acked = last_packet_acked;
-  session->last_packet_available = last_packet_available;
+/*
+  last_packet_sent: should be initialized to 0
+  last_packte_acked: should be intialized to 0
+  last_packet_available: should be initialized to 0
+
+  actual data packet number will start from 1
+ */
+void init_session(udp_session *session, short send_window, short recv_window, int peer_id, short dup_ack, FILE *f, char *from_ip, short port){
+  session->last_packet_sent = 0;
+  session->last_packet_acked = 0;
+  session->last_packet_available = 0;
   session->send_window = send_window;
   session->recv_window = recv_window;
   session->peer_id = peer_id;
   session->dup_ack = dup_ack;
   session->f = f;
   strcpy(session->ip, from_ip);
-  session->sock = sock;
+  session->sock = port;
+  for (uint32_t i = 0; i < sizeof(session->index)/sizeof(uint32_t); i++){
+    session->index[i] = 0;
+  }
+  init_vector(&session->timers, sizeof(timer));
   return;
 }
 
@@ -117,16 +128,6 @@ packet_h * parse_packet(char **buf){
   return header;
 }
 
-void build_header(packet_h *header, int magicNo, int versionNo, int packType, int headerLen, int packLen, int seqNo, int ackNo){
-  header->magicNo = magicNo;
-  header->versionNo = versionNo;
-  header->packType = packType;
-  header->headerLen = headerLen;
-  header->packLen = packLen;
-  header->seqNo = seqNo;
-  header->ackNo = ackNo;
-  return;
-}
 
 /*
  * peers_t *peers: a pointer to all peers
@@ -149,48 +150,7 @@ peer_info_t *get_peer_info(peers_t *peers, int idx){
   find the peer information based on given ip & sock
  */
 peer_info_t *find_peer_from_list(peers_t *peers, char *ip, int sock){
-  
-}
-
-void build_packet(packet_h *header, char *query, char *msg){
-  /* there is no endian problem for a single byte */
-  uint16_t magicNo = htons(header->magicNo);
-  uint16_t headerLen = htons(header->headerLen);
-  uint16_t packLen = htons(header->packLen);
-  uint32_t seqNo = htonl(header->seqNo);
-  uint32_t ackNo = htonl(header->ackNo);
-  memcpy(msg, &magicNo, 2);
-  memcpy(msg + 2, &header->versionNo , 1);
-  memcpy(msg + 3, &header->packType, 1);
-  memcpy(msg + 4, &headerLen, 2);
-  memcpy(msg + 6, &packLen, 2);
-  memcpy(msg + 8, &seqNo, 4);
-  memcpy(msg + 12, &ackNo, 4);
-  //todo: possibly there are extended headers
-  if (query != NULL){
-    memcpy(msg + header->headerLen, query, strlen(query));    
-  }
-  return;
-}
-
-/*
- * packet_h *header: the packet header
- * char *query: the packet body
- *
- * given the packet header & packet body, send the packet to recipient
- */
-void send_packet(char *ip, int port, packet_h *header, char *query, int mysock, int body_size){
-  char *msg;
-  if (query != NULL){
-    msg = (char*)malloc(header->headerLen + body_size);
-  }else{
-    msg = (char*)malloc(header->headerLen);
-  }
-
-  build_packet(header, query, msg);
-  send_udp_packet_with_sock(ip, port, msg, mysock, header->headerLen + body_size);
-  free(msg);
-  return;
+  return NULL;
 }
 
 /*
@@ -573,53 +533,6 @@ int find_chunk_idx(char *chunk, char *chunk_file, char *masterfile){
   return chunk_idx;
 }
 
-/*
-  add a new timer into the vector of timers
- */
-void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf){
-      timer *cur_timer = (timer*)malloc(sizeof(timer));
-      cur_timer->start = clock();
-      cur_timer->repeat_times = 0;
-      strcpy(cur_timer->ip, ip);
-      cur_timer->sock = sock;
-      if (header == NULL){
-        cur_timer->msg = (char*)malloc(strlen(filebuf) + 1);
-        strcpy(cur_timer->msg, filebuf);
-      }else{
-        cur_timer->msg = (char*)malloc(sizeof(packet_h) + strlen(filebuf));
-        memcpy(cur_timer->msg, header, sizeof(packet_h));
-        memcpy(cur_timer->msg + sizeof(packet_h), filebuf, strlen(filebuf));
-      }
-      vec_add(timers, cur_timer);
-      return;
-}
-
-/*
-  based on the last_packet_sent & last_packet_acked & window size,
-  send pakcets that are within available window
- */
-void send_packets_in_range(udp_session *session, FILE *f1, char *from_ip, int port, bt_config_t *config){
-  char filebuf[UDP_MAX_PACK_SIZE];
-  int packSize = 0;
-  packet_h cur_header;
-
-  // sending binary data?
-  memset(filebuf, 0, UDP_MAX_PACK_SIZE);
-  memset(&cur_header, 0, sizeof(packet_h));
-  while((session->last_packet_sent - session->last_packet_acked) < DEFAULT_WINDOW_SIZE){
-    if ((packSize = fread(filebuf, 1, UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN, f1)) > 0){
-      build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize,
-                   session->last_packet_sent + 1, session->last_packet_acked);
-      send_packet(from_ip, port, &cur_header, filebuf, config->mysock, packSize);
-      session->last_packet_sent++;
-      add_timer(&config->whohas_timers, from_ip, port, &cur_header, filebuf);
-    }else{
-      fprintf(stderr, "Failed to read packet from File descriptor %p\n", f1);
-      exit(1);
-    }
-  }
-  return;
-}
 
 /*
   need to send DATA packet through reliable communication
@@ -651,7 +564,7 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
                       socklen_t fromlen, int BUFLEN,
                       bt_config_t *config, packet_h *header){
   FILE *f1;
-  char *buf_backup = (char*)malloc(strlen(buf) + 1), *token, masterfile[BT_FILENAME_LEN], filebuf[UDP_MAX_PACK_SIZE], *from_ip;
+  char *buf_backup = (char*)malloc(strlen(buf) + 1), *token, masterfile[BT_FILENAME_LEN], *from_ip;
   int chunk_idx;
   udp_session *session = NULL;
   short port = ntohs(from.sin_port);
@@ -662,24 +575,21 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
     session = (udp_session*)malloc(sizeof(udp_session));
     memset(session, 0, sizeof(udp_session));
   }
-  if ((session->last_packet_sent - session->last_packet_acked) < DEFAULT_WINDOW_SIZE){
-    token = strtok(buf_backup, " ");
-    token = strtok(NULL, " "); /* token pointers to chunk hash */
-    chunk_idx = find_chunk_idx(token, config->chunk_file, masterfile);
-    if ((f1 = fopen(masterfile, "r")) == NULL){
-      fprintf(stderr, "Cannot open master chunk file %s \n", masterfile);
-      exit(1);
-    }
-    if (session->f== NULL){ // init session struct
-      build_session(session, 0, 0, 0, 8, 8, config->identity, 0, f1, from_ip, sock);
-    }
-    fseek(f1, chunk_idx * CHUNK_LEN, SEEK_SET);
-    memset(filebuf, 0, PACK_HEADER_BASE_LEN);
-    session->chunk_index = chunk_idx;
-    send_packets_in_range(session, f1, from_ip, port, config);
-  }else{
-    //todo: there have been enough pending packets, what todo?
+
+  token = strtok(buf_backup, " ");
+  token = strtok(NULL, " "); /* token pointers to chunk hash */
+  chunk_idx = find_chunk_idx(token, config->chunk_file, masterfile);
+  if ((f1 = fopen(masterfile, "r")) == NULL){
+    fprintf(stderr, "Cannot open master chunk file %s \n", masterfile);
+    exit(1);
   }
+  if (session->f== NULL){ // init session struct
+    init_session(session, 8, 8, config->identity, 0, f1, from_ip, sock);
+  }
+  fseek(f1, chunk_idx * CHUNK_LEN, SEEK_SET);
+  session->chunk_index = chunk_idx;
+  send_udp_packet_r(session, f1, from_ip, port, config->mysock);
+
   return;
 }
 
@@ -1096,6 +1006,8 @@ void handle_user_input(char *line, void *cbdata, bt_config_t *config, vector *ih
  * todo: need to remove the timer when the message has been received!
  */
 void check_for_timeouts(bt_config_t *config){
+  // need to check timeouts in other sessions
+  
   /* check for whohas timeouts */
   for (int i = 0; i < config->whohas_timers.len; i++){
     clock_t cur = clock();

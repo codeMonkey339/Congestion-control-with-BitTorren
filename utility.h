@@ -2,6 +2,7 @@
 #define _UTILITY_
 
 #include <time.h>
+#include "packet.h"
 
 
 #define DEFAULT_VEC_SIZE 10
@@ -80,4 +81,5 @@ void vec_free(vector *vec);
 /* chunk_dis is not general enough, how about void* ? */
 void vec_sort(vector *vec, int (*cmp)(chunk_dis *, chunk_dis*));
 int read_from_sock(int sock, char *buf, int BUFLEN);
+void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf);
 #endif
