@@ -636,21 +636,15 @@ void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen
 
 /*
  impl notes:
- 1. check if within window
- 2. sender keep an array of indexes, move window forward when
- cumulative ack
- 3. receiver keep an array of index
+ 3. if received all chunks, need to create a new file
+ 5. need to release dynamic memeory like config->udp_sender_session
  */
 void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen, int BUFLEN, bt_config_t *config, packet_h *header, int recv_size){
-  /*
-    todos:
-    3. if received all chunks, need to create a new file
-    5. need to release dynamic memeory like config->udp_sender_session
-   */
   vector *recv_sessions = &config->recv_sessions;
   char *ip = inet_ntoa(from.sin_addr);
   int port = ntohs(from.sin_port);
   udp_recv_session *session;
+  size_t forward_n = 0;
   if ((session = find_recv_session(recv_sessions, ip, port)) == NULL){
     fprintf(stderr, "Cannot find stored session for ip %s & port %d\n", ip, port);
     return;
@@ -661,19 +655,14 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
     return;
   }
   if ((session->last_packet_acked + 1) == (short)header->seqNo){
-    build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0, session->last_packet_acked + 1);
-    // move window forward
-    session->last_packet_acked++;
-    session->last_acceptable_frame++;
-    for (size_t i = 0; i < (sizeof(session->recved_flags) /sizeof(session->recved_flags[0]) - 1) ; i++ ){
-      session->recved_flags[i] = session->recved_flags[i + 1];
-    }
-    session->recved_flags[sizeof(session->recved_flags) /sizeof(session->recved_flags[0]) - 1] = 0;
+    forward_n = move_window(session);
+    build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0, session->last_packet_acked + forward_n);
   }else{
     build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0, session->last_packet_acked);
-    if (session->recved_flags[header->seqNo - session->last_packet_acked] == 0){ /*  havent' received this packet before */
+    if (session->recved_flags[header->seqNo - session->last_packet_acked - 1] == 0){ /*  havent' received this packet before */
       memcpy(session->data + session->buf_size, buf, recv_size - PACK_HEADER_BASE_LEN);
       session->buf_size += recv_size - PACK_HEADER_BASE_LEN;
+      session->recved_flags[header->seqNo - session->last_packet_acked - 1] = 1;
   }
   /* send ACK packet */
   send_packet(ip, port, &curheader, NULL, config->mysock, 0);

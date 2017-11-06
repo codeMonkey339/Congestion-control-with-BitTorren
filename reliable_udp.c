@@ -173,8 +173,27 @@ void build_packet(packet_h *header, char *query, char *msg){
 }
 
 /*
-  move the receiver window forward by n steps
+  check the flag array, move forward the window if possible
  */
-void move_window(udp_recv_session *session, int step){
+int move_window(udp_recv_session *session){
+  size_t index;
+  size_t arr_size = sizeof(session->recved_flags) /sizeof(session->recved_flags[0]);
 
+  for (index = 0; index < arr_size; index++){
+    if (session->recved_flags[index] == 0){
+      break;
+    }
+  }
+  if (index > 0){
+    session->last_packet_acked += index;
+    session->last_acceptable_frame += index;
+    for (size_t i = 0; i < (arr_size - index) ; i++ ){
+      session->recved_flags[i] = session->recved_flags[i + index];
+    }
+    for (size_t i = (arr_size - index); i < arr_size; i++){
+      session->recved_flags[i] = 0;
+    }
+  }
+
+  return index;
 }
