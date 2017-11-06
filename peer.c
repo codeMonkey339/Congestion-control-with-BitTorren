@@ -171,7 +171,11 @@ void request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx){
   packet = (char*)malloc(PACK_HEADER_BASE_LEN + strlen(query));
   peer_info_t *peer = get_peer_info(config->peer, peer_idx);
   send_packet(peer->ip, peer->port, &header, query, config->mysock, strlen(query));
-  // todo: need to add timer here just in case peer doesn't reply.
+  /*
+    todo: in this case, merely adding the timer may not be enough,
+    need to add crash recovery mechanism
+   */
+  add_timer(&config->whohas_timers, peer->ip, peer->port, NULL, query);
   free(query);
   free(packet);
   return;
@@ -331,12 +335,16 @@ int chunks_dis_cmp(chunk_dis *dis1, chunk_dis *dis2){
 void build_udp_recv_session(udp_recv_session *session, int peer_id, char *chunk_hash, bt_config_t *config){
   peer_info_t *peer = get_peer_info(config->peer, peer_id);
   session->last_packet_acked = 0;
+  session->last_acceptable_frame = session->last_packet_acked + 1 + DEFAULT_WINDOW_SIZE;
   session->peer_id = peer_id;
   strcpy(session->ip, peer->ip);
   session->sock = peer->port;
   strcpy(session->chunk_hash, chunk_hash);
   session->data = (char*)malloc(CHUNK_LEN);
   session->data_complete = 0;
+  for (int i = 0; i < sizeof(session->recved_flags) * 1.0 / sizeof(session->recved_flags[0]); i++){
+    session->recved_flags[i] = 0;
+  }
   return;
 }
 
@@ -590,8 +598,10 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
   if (session->f== NULL){ // init session struct
     init_session(session, 8, 8, config->identity, 0, f1, from_ip, sock);
   }
+  vec_add(&config->sessions, session);
   session->chunk_index = chunk_idx;
   send_udp_packet_r(session, from_ip, port, config->mysock, 0);
+  free(session);
   return;
 }
 
@@ -609,7 +619,7 @@ void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen
     fseek(session->f, session->chunk_index * CHUNK_LEN + header->ackNo * (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN), SEEK_SET);
     send_udp_packet_r(session, from_ip, port, config->mysock, 0);
     if (header->ackNo == session->total_packets){
-      //todo: all packets sent, need to clean up the session
+      vec_delete(&config->sessions, session);
     }
   }else if (header->ackNo == (uint32_t)(session->last_packet_sent)){
     /* current repeat times is 5 */
@@ -626,13 +636,10 @@ void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen
 
 /*
  impl notes:
- any incoming packet has to be within the window in order to be accepted.
- sender:
- keep a buffer of packets, and an array of indexes, flag the index whenever a packet is acknowledged. When all packets are acknowledged, move the window forward and reset the array.
- whenever a timeout occurs, re-send all the packets from the timeout packet till the end of the buffered packets in the window
- receiver:
- keep an array of indexes, whenever a packet is received, flag the index in the array, and check for the largeste ackNo. If there are consecutive indexes, then move the window forward accordingly, and reset the array of indexes. There is no buffer needed since every chunk is of fixed size.
-
+ 1. check if within window
+ 2. sender keep an array of indexes, move window forward when
+ cumulative ack
+ 3. receiver keep an array of index
  */
 void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen, int BUFLEN, bt_config_t *config, packet_h *header, int recv_size){
   /*
@@ -646,23 +653,39 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
   udp_recv_session *session;
   if ((session = find_recv_session(recv_sessions, ip, port)) == NULL){
     fprintf(stderr, "Cannot find stored session for ip %s & port %d\n", ip, port);
+    return;
   }
   packet_h curheader;
-  memcpy(session->data + session->buf_size, buf, recv_size - PACK_HEADER_BASE_LEN);
+  if ((short)header->seqNo <= session->last_packet_acked && (short)header->seqNo > session->last_acceptable_frame){
+    fprintf(stdout, "Received a stray packet out of the current window\n");
+    return;
+  }
   if ((session->last_packet_acked + 1) == (short)header->seqNo){
     build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0, session->last_packet_acked + 1);
+    // move window forward
+    session->last_packet_acked++;
+    session->last_acceptable_frame++;
+    for (size_t i = 0; i < (sizeof(session->recved_flags) /sizeof(session->recved_flags[0]) - 1) ; i++ ){
+      session->recved_flags[i] = session->recved_flags[i + 1];
+    }
+    session->recved_flags[sizeof(session->recved_flags) /sizeof(session->recved_flags[0]) - 1] = 0;
   }else{
     build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0, session->last_packet_acked);
+    if (session->recved_flags[header->seqNo - session->last_packet_acked] == 0){ /*  havent' received this packet before */
+      memcpy(session->data + session->buf_size, buf, recv_size - PACK_HEADER_BASE_LEN);
+      session->buf_size += recv_size - PACK_HEADER_BASE_LEN;
   }
   /* send ACK packet */
   send_packet(ip, port, &curheader, NULL, config->mysock, 0);
-  session->buf_size += recv_size - PACK_HEADER_BASE_LEN;
   if (recv_size >= UDP_MAX_PACK_SIZE){
     // more packets to go
   }else{
-    //todo: need to check the hash of the received chunk
+    //todo: received the last packet, need to check the hash of the received chunk
     session->data_complete = 1;
     int all_data_received = 1;
+    /* mutiple chunks will be requested from different peers, check
+       whether have received complete chunks from all of them
+    */
     for (int i = 0; i < recv_sessions->len; i++){
       udp_recv_session *cur_session = (udp_recv_session*)vec_get(recv_sessions, i);
       if (!cur_session->data_complete){

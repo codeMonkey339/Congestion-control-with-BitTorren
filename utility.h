@@ -80,6 +80,7 @@ void vec_insert_at(vector *vec, void *ele, int idx);
 void vec_free(vector *vec);
 /* chunk_dis is not general enough, how about void* ? */
 void vec_sort(vector *vec, int (*cmp)(chunk_dis *, chunk_dis*));
+int vec_delete(vector *vec, void *ele);
 int read_from_sock(int sock, char *buf, int BUFLEN);
 void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf);
 #endif

@@ -46,6 +46,23 @@ void vec_sort(vector *vec, int (*cmp)(chunk_dis *, chunk_dis*)){
   //todo: implement quick sort here? should it be in-place?
 }
 
+int vec_delete(vector *vec, void *ele){
+  int i = 0;
+  for (; i < vec->len; i++){
+    void *cur_ele = vec_get(vec, i);
+    if (!memcmp(ele, cur_ele, vec->ele_size)){
+      break;
+    }
+  }
+  if (i >= vec->len){
+    return -1;
+  }else{
+    vec->len--;
+    memmove(((char*)vec->val) + i * vec->ele_size, ((char*)vec->val) + (i + 1) * vec->ele_size, (vec->len - i - 1) * vec->ele_size);
+    return 0;
+  }
+}
+
 /*
  * vector *vec: the vector pointer
  * void *ele: pointer to the vector element

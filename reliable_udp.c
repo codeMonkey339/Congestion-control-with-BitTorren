@@ -171,3 +171,10 @@ void build_packet(packet_h *header, char *query, char *msg){
   }
   return;
 }
+
+/*
+  move the receiver window forward by n steps
+ */
+void move_window(udp_recv_session *session, int step){
+
+}

@@ -74,4 +74,5 @@ void build_header(packet_h *header, int magicNo, int versionNo, int packType,
 void send_packet(char *ip, int port, packet_h *header, char *query, int mysock,
                  int body_size);
 void build_packet(packet_h *header, char *query, char *msg);
+void move_window(udp_recv_session *session, int step);
 #endif /* _RELIABLE_UDP_H */
