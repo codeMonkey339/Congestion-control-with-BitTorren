@@ -175,10 +175,13 @@ void build_packet(packet_h *header, char *query, char *msg){
 /*
   check the flag array, move forward the window if possible
  */
-int move_window(udp_recv_session *session){
+int move_window(udp_recv_session *session, char *buf, size_t recv_size){
   size_t index;
   size_t arr_size = sizeof(session->recved_flags) /sizeof(session->recved_flags[0]);
 
+  memcpy(session->data + session->buf_size, buf, recv_size - PACK_HEADER_BASE_LEN);
+  session->buf_size += recv_size - PACK_HEADER_BASE_LEN;
+  session->recved_flags[0] = 1;
   for (index = 0; index < arr_size; index++){
     if (session->recved_flags[index] == 0){
       break;
@@ -196,4 +199,23 @@ int move_window(udp_recv_session *session){
   }
 
   return index;
+}
+
+
+/*
+  check whether all data packets are received
+ */
+int check_data_complete(vector *recv_sessions){
+    int all_data_received = 1;
+    /* mutiple chunks will be requested from different peers, check
+       whether have received complete chunks from all of them
+    */
+    for (int i = 0; i < recv_sessions->len; i++){
+      udp_recv_session *cur_session = (udp_recv_session*)vec_get(recv_sessions, i);
+      if (!cur_session->data_complete){
+        all_data_received = 0;
+        break;
+      }
+    }
+    return all_data_received;
 }

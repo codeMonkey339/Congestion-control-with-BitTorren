@@ -596,11 +596,11 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
     exit(1);
   }
   if (session->f== NULL){ // init session struct
-    init_session(session, 8, 8, config->identity, 0, f1, from_ip, sock);
+    init_session(session, 8, 8, config->identity, 0, f1, from_ip, port);
   }
-  vec_add(&config->sessions, session);
   session->chunk_index = chunk_idx;
   send_udp_packet_r(session, from_ip, port, config->mysock, 0);
+  vec_add(&config->sessions, session);
   free(session);
   return;
 }
@@ -650,39 +650,29 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
     return;
   }
   packet_h curheader;
-  if ((short)header->seqNo <= session->last_packet_acked && (short)header->seqNo > session->last_acceptable_frame){
+  if ((short)header->seqNo <= session->last_packet_acked || (short)header->seqNo > session->last_acceptable_frame){
     fprintf(stdout, "Received a stray packet out of the current window\n");
     return;
   }
   if ((session->last_packet_acked + 1) == (short)header->seqNo){
-    forward_n = move_window(session);
-    build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0, session->last_packet_acked + forward_n);
+    forward_n = move_window(session, buf, recv_size);
+    build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0, session->last_packet_acked);
   }else{
     build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0, session->last_packet_acked);
-    if (session->recved_flags[header->seqNo - session->last_packet_acked - 1] == 0){ /*  havent' received this packet before */
-      memcpy(session->data + session->buf_size, buf, recv_size - PACK_HEADER_BASE_LEN);
+    if ((uint32_t)session->last_packet_acked < header->seqNo){
+      // assume: every packet is of the fixed size???
+      memcpy(session->data + (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN) * header->seqNo, buf, recv_size - PACK_HEADER_BASE_LEN);
       session->buf_size += recv_size - PACK_HEADER_BASE_LEN;
       session->recved_flags[header->seqNo - session->last_packet_acked - 1] = 1;
+    }
   }
   /* send ACK packet */
   send_packet(ip, port, &curheader, NULL, config->mysock, 0);
   if (recv_size >= UDP_MAX_PACK_SIZE){
     // more packets to go
   }else{
-    //todo: received the last packet, need to check the hash of the received chunk
     session->data_complete = 1;
-    int all_data_received = 1;
-    /* mutiple chunks will be requested from different peers, check
-       whether have received complete chunks from all of them
-    */
-    for (int i = 0; i < recv_sessions->len; i++){
-      udp_recv_session *cur_session = (udp_recv_session*)vec_get(recv_sessions, i);
-      if (!cur_session->data_complete){
-        all_data_received = 0;
-        break;
-      }
-    }
-    if (all_data_received){
+    if (check_data_complete(recv_sessions)){
       FILE *newfile;
       if ((newfile = fopen(config->output_file, "w")) == NULL){
         fprintf(stderr, "Failed to create the new file %s\n", config->output_file);
