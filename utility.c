@@ -19,6 +19,7 @@ void init_vector(vector *vec, int ele_size){
 
 void vec_add(vector *vec, void *ele){
   if (vec->size == vec->len){
+    //the problem occurs in re-sizing
     vec->val = (void *)realloc(vec->val, vec->ele_size * vec->size * 2); // double
     vec->size *= 2;
   }
