@@ -19,8 +19,12 @@ void init_vector(vector *vec, int ele_size){
 
 void vec_add(vector *vec, void *ele){
   if (vec->size == vec->len){
+    char *tmp = (void*)malloc(vec->ele_size * vec->size * 2);
+    memcpy(tmp, vec->val, vec->ele_size * vec->size);
     //the problem occurs in re-sizing
-    vec->val = (void *)realloc(vec->val, vec->ele_size * vec->size * 2); // double
+    free(vec->val);
+    //vec->val = (void *)realloc(vec->val, vec->ele_size * vec->size * 2); // double
+    vec->val = tmp;
     vec->size *= 2;
   }
   memcpy((char*)vec->val + vec->len * vec->ele_size, ele, vec->ele_size); // memory copy
@@ -115,5 +119,6 @@ void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *fileb
     memcpy(cur_timer->msg + sizeof(packet_h), filebuf, strlen(filebuf));
   }
   vec_add(timers, cur_timer);
+  free(cur_timer);
   return;
 }

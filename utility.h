@@ -17,10 +17,10 @@
 
 
 typedef struct vector{
-  void *val;
   int ele_size;
   int len;
   int size;
+  void *val;
 }vector;
 
 
