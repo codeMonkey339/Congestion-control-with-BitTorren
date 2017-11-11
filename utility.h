@@ -83,4 +83,5 @@ void vec_sort(vector *vec, int (*cmp)(chunk_dis *, chunk_dis*));
 int vec_delete(vector *vec, void *ele);
 int read_from_sock(int sock, char *buf, int BUFLEN);
 void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf);
+void test_vec();
 #endif

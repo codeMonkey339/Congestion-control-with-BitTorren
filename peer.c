@@ -293,7 +293,7 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
         /* strtok will replace ' ' with '\0' */
         hash_len = strlen(token);
         if ((reply_len + hash_len) >= buf_size){
-          buf = (char*)realloc(reply, 2 * buf_size);
+          reply = (char*)realloc(reply, 2 * buf_size);
         }
         strcat(reply, vec_get(&v, i));
         strcat(reply, " ");
@@ -619,6 +619,7 @@ void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen
     fseek(session->f, session->chunk_index * CHUNK_LEN + header->ackNo * (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN), SEEK_SET);
     send_udp_packet_r(session, from_ip, port, config->mysock, 0);
     if (header->ackNo == session->total_packets){
+      // have sent all the packets, the session should be deleted
       vec_delete(&config->sessions, session);
     }
   }else if (header->ackNo == (uint32_t)(session->last_packet_sent)){
@@ -1031,12 +1032,6 @@ void release_all_peers(bt_config_t *config){
  * approach is employed here: when a request is sent, the current
  * clock is recorded. In the main loop, all timers will be checked
  * constantly to ensure all timeout timers are processed
- *
- * todos:
- * 1. when receiving from command line, it is fine reading directly
- * from socket. However, when receiving from peers, all messages are
- * sent in a certain format. That woudl require special reading
- * function to read packet in certain format from socket
  */
 void peer_run(bt_config_t *config) {
   int sock;
@@ -1058,7 +1053,7 @@ void peer_run(bt_config_t *config) {
   myaddr.sin_family = AF_INET;
   myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
   myaddr.sin_port = htons(config->myport);
-
+  //test_vec();
   if (bind(sock, (struct sockaddr *) &myaddr, sizeof(myaddr)) == -1) {
     perror("peer_run could not bind socket");
     exit(-1);
