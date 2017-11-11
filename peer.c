@@ -583,9 +583,20 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
   memset(buf_backup, 0, strlen(buf) + 1);
   strcpy(buf_backup, buf);
   from_ip = inet_ntoa(from.sin_addr);
+  short session_exist = 1;
+
   if ((session = find_session(from_ip, port, &config->sessions)) == NULL){
     session = (udp_session*)malloc(sizeof(udp_session));
     memset(session, 0, sizeof(udp_session));
+    session_exist = 0;
+  }else{
+    /*
+      todo:
+      should accept only 1 simultaneous connection from a particular host
+      send a DENIED packet
+     */
+    free(buf_backup);
+    return;
   }
 
   token = strtok(buf_backup, " ");
@@ -600,8 +611,10 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
   }
   session->chunk_index = chunk_idx;
   send_udp_packet_r(session, from_ip, port, config->mysock, 0);
-  vec_add(&config->sessions, session);
-  free(session);
+  if (!session_exist){
+    vec_add(&config->sessions, session);
+    free(session);
+  }
   return;
 }
 
