@@ -654,6 +654,7 @@ void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen
  5. need to release dynamic memeory like config->udp_sender_session
  */
 void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen, int BUFLEN, bt_config_t *config, packet_h *header, int recv_size){
+  static int counter = 0;
   vector *recv_sessions = &config->recv_sessions;
   char *ip = inet_ntoa(from.sin_addr);
   int port = ntohs(from.sin_port);
@@ -698,6 +699,7 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
       }
     }
   }
+  counter++;
   return;
 }
 
