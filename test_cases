@@ -4,11 +4,13 @@ scenarios & tests documentation
    2. if peer B doesn't reply, then the timer in A should be triggered
    3. if peer B denies the connection, then A knows that it is
    currently serving one connection from itself
-   a) keep a queue in the current connection, and then checks it
-   after the currection request is serviced?
    b) keep the queue in config, and after a chunk is fully
+   a) won't send 2 simultaneous connections.
    retrieved, checks whether the there are queueing requests? If
    so, then send get queries
+   4. what if the 1st and 2nd GET request comes close?
+      The RTT should be estimated so that the packet is no longer in
+      the network 
 
 2. in a reliable communication
    1. peer A will send pakcets in the window first, and then wait for
@@ -37,3 +39,4 @@ scenarios & tests documentation
           1) Simple implementation: dropped the connection and marks
              the peer as crashed. Proceed with peer crash mechanism
           2) ? more complex mechanism?
+             

@@ -58,8 +58,11 @@ struct bt_config_s {
   peers_t *peer;
   /* timers recording time for whohas messages */
   vector whohas_timers;
+  vector get_timers;
   /* starter code provided, employs a linked list implementation */
   bt_peer_t *peers;
+  /* the queue to store future requests */
+  vector request_queue;
   /* udp sessions between host & its peers */
   vector sessions;
   /* sender sessions */

@@ -155,6 +155,7 @@ peer_info_t *find_peer_from_list(peers_t *peers, char *ip, int sock){
   return NULL;
 }
 
+
 /*
  * bt_config_t *config: the config struct
  * char *chunk_msg: the chunk hash
@@ -164,6 +165,7 @@ peer_info_t *find_peer_from_list(peers_t *peers, char *ip, int sock){
 void request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx){
   packet_h header;
   char *query = (char*)malloc(strlen("GET") + CHUNK_HASH_SIZE + 2), *packet;
+  int timer_exists = 0;
   memset(query, 0, strlen("GET") + CHUNK_HASH_SIZE + 2);
   strcat(query, "GET ");
   strcat(query, chunk_msg);
@@ -172,10 +174,25 @@ void request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx){
   peer_info_t *peer = get_peer_info(config->peer, peer_idx);
   send_packet(peer->ip, peer->port, &header, query, config->mysock, strlen(query));
   /*
-    todo: in this case, merely adding the timer may not be enough,
-    need to add crash recovery mechanism
+    todo:1. check whether ip/port pair is there
    */
-  add_timer(&config->whohas_timers, peer->ip, peer->port, NULL, query);
+  for (int i = 0;i < config->get_timers.len; i++){
+    timer *t = (timer*)vec_get(&config->get_timers, i);
+    if (!strcmp(t->ip, peer->ip) && t->sock == peer->port){
+      timer_exists = 1;
+      break;
+    }
+  }
+  if (timer_exists){ // queue up the message
+    request_t r;
+    strcpy(r.ip, peer->ip);
+    r.port = peer->port;
+    strcpy(r.chunk, query);
+    vec_add(&config->request_queue, &r);
+  }else{
+    //todo: need to handle timeout situation
+    add_timer(&config->get_timers, peer->ip, peer->port, NULL, query);
+  }
   free(query);
   free(packet);
   return;
@@ -700,6 +717,8 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
         udp_recv_session *cur_session = (udp_recv_session*)vec_get(recv_sessions, i);
         fwrite(cur_session->data, 1, cur_session->buf_size, newfile);
       }
+    }else{
+      //todo: need to check for queued up requests to the same host.
     }
   }
   counter++;
@@ -921,6 +940,8 @@ vector *build_query(vector *filtered_chunks, unsigned int chunks_num){
  */
 void flood_peers_query(peers_t *peers, vector *queries, bt_config_t *config){
   init_vector(&config->whohas_timers, sizeof(timer));
+  init_vector(&config->get_timers, sizeof(timer));
+  init_vector(&config->request_queue, sizeof(request_t));
   for (int j = 0; j < queries->len; j++){
     char *query = (char*)vec_get(queries, j);
     packet_h header;

@@ -36,6 +36,13 @@ typedef struct peers{
 }peers_t;
 
 
+typedef struct request{
+  char ip[IP_STR_LEN];
+  int port;
+  char chunk[CHUNK_HASH_SIZE + 5];
+} request_t;
+
+
 typedef struct timer{
   clock_t start;
   short repeat_times;
