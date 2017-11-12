@@ -1,0 +1,39 @@
+scenarios & tests documentation
+1. peer A requests for a chunk
+   1. if peer B replies, then A should remove the timer in the connection
+   2. if peer B doesn't reply, then the timer in A should be triggered
+   3. if peer B denies the connection, then A knows that it is
+   currently serving one connection from itself
+   a) keep a queue in the current connection, and then checks it
+   after the currection request is serviced?
+   b) keep the queue in config, and after a chunk is fully
+   retrieved, checks whether the there are queueing requests? If
+   so, then send get queries
+
+2. in a reliable communication
+   1. peer A will send pakcets in the window first, and then wait for
+   ACKs from peer B
+   1. peer B received DATA packet and then send ACKs
+   2. when A receives a ACK packet
+      a) if peer A receives a imminent packet, then moves the window
+         forward by 1, and sends a new DATA packet
+      b) if A receives a non-imminent packet, then copies the data &
+         marks in the array that this packet has been received
+   3. two-way timeout mechanism to cope with crash
+      a) A sends a packet, and he hasn't received the ACK for certain
+   amount of tme, then he will send the packet again
+   b) on the contrary, if B receives a DATA packet, then he will
+   sends an ACK. After a certain amount time, B hasn't received any
+   new packet, what will it do? ACK won't be sent through reliabe
+   communication, so we won't care about it.
+   1. when A doesn't receive an ACK
+      a) timeout mechanism will work, and a DATA will be sent. 
+      b) after trying the maximum number of times, it will give up
+   2. when B doesn't receive any DATA packet
+      a) it will try to repeat the GET message up to maximum # of
+      times
+      b) if B stops to receive any DATA packet after a while in the
+      communication, what will it do?
+          1) Simple implementation: dropped the connection and marks
+             the peer as crashed. Proceed with peer crash mechanism
+          2) ? more complex mechanism?
