@@ -77,15 +77,19 @@ void send_udp_packet_r(udp_session *session, char *from_ip, int port,
     // sending binary data?
     memset(filebuf, 0, UDP_MAX_PACK_SIZE);
     memset(&cur_header, 0, sizeof(packet_h));
+    int sent_bytes = 0;
 
     if (!timeout){/* non-timeout */
       fseek(session->f, session->chunk_index * CHUNK_LEN + (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN) * session->last_packet_sent, SEEK_SET);
       while((session->last_packet_sent - session->last_packet_acked) < DEFAULT_WINDOW_SIZE){
-        if ((packSize = fread(filebuf, 1, UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN, session->f)) > 0){
+        size_t packet_body_size = UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN;
+        size_t bytes_to_send = (CHUNK_LEN - session->sent_bytes)>packet_body_size?packet_body_size:(CHUNK_LEN - session->sent_bytes);
+        if ((packSize = fread(filebuf, 1, bytes_to_send, session->f)) > 0){
           build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize,
                        session->last_packet_sent + 1, session->last_packet_acked);
           send_packet(from_ip, port, &cur_header, filebuf, mysock, packSize);
           session->last_packet_sent++;
+          session->sent_bytes += bytes_to_send;
           add_timer(&session->timers, from_ip, port, &cur_header, filebuf);
         }else{
           fprintf(stderr, "Failed to read packet from File descriptor %p\n", session->f);

@@ -84,7 +84,7 @@ void init_session(udp_session *session, short send_window, short recv_window, in
   session->f = f;
   strcpy(session->ip, from_ip);
   session->sock = port;
-  session->total_packets = ceil(CHUNK_LEN / (UDP_MAX_PACK_SIZE - CHUNK_HASH_SIZE));
+  session->sent_bytes = 0;
   for (uint32_t i = 0; i < sizeof(session->index)/sizeof(uint32_t); i++){
     session->index[i] = 0;
   }
@@ -621,7 +621,8 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
 /*
   Based on acknowledgements from peers, take next step actions
 */
-void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen, int BUFLEN, bt_config_t *config, packet_h *header){
+void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen,
+                 int BUFLEN, bt_config_t *config, packet_h *header){
   char *from_ip = inet_ntoa(from.sin_addr), file_buf[UDP_MAX_PACK_SIZE];
   short port = ntohs(from.sin_port);
   memset(file_buf, 0, UDP_MAX_PACK_SIZE);
@@ -629,11 +630,13 @@ void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen
   if (header->ackNo == (uint32_t)(session->last_packet_acked + 1)){
     session->last_packet_acked++;
     session->dup_ack = 0;
-    fseek(session->f, session->chunk_index * CHUNK_LEN + header->ackNo * (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN), SEEK_SET);
-    send_udp_packet_r(session, from_ip, port, config->mysock, 0);
-    if (header->ackNo == session->total_packets){
-      // have sent all the packets, the session should be deleted
-      vec_delete(&config->sessions, session);
+    if (session->sent_bytes >= CHUNK_LEN){
+      if (session->last_packet_acked == session->last_packet_sent){
+        vec_delete(&config->sessions, session);
+      }
+    }else{
+      fseek(session->f, session->chunk_index * CHUNK_LEN + header->ackNo * (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN), SEEK_SET);
+      send_udp_packet_r(session, from_ip, port, config->mysock, 0);
     }
   }else if (header->ackNo == (uint32_t)(session->last_packet_sent)){
     /* current repeat times is 5 */
