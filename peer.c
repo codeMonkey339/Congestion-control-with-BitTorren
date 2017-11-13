@@ -715,9 +715,8 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
   if (recv_size >= UDP_MAX_PACK_SIZE){
     // more packets to go
   }else{
-    vec_delete(recv_sessions, session);
     session->data_complete = 1;
-    if (check_data_complete(recv_sessions)){
+    if (check_data_complete(recv_sessions, &config->request_queue)){
       FILE *newfile;
       if ((newfile = fopen(config->output_file, "w")) == NULL){
         fprintf(stderr, "Failed to create the new file %s\n", config->output_file);
@@ -735,15 +734,16 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
         if (!strcmp(r->ip, ip) && port == r->port){
           token = strtok(r->chunk, " ");
           token = strtok(NULL, " ");
-          udp_recv_session *session = (udp_recv_session*)malloc(sizeof(udp_recv_session));
+          udp_recv_session *new_session = (udp_recv_session*)malloc(sizeof(udp_recv_session));
           peer_info_t *peer = find_peer_from_list(config->peer, ip, port);
-          build_udp_recv_session(session, peer->id, token, config);
+          build_udp_recv_session(new_session, peer->id, token, config);
           if(!request_chunk(config, token, peer->id, 1))
-            vec_add(&config->recv_sessions, session);
+            vec_add(&config->recv_sessions, new_session);
           vec_delete(queued_requests, r);
         }
       }
     }
+    vec_delete(recv_sessions, session);
   }
   counter++;
   return;

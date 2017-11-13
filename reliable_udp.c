@@ -209,12 +209,13 @@ int move_window(udp_recv_session *session, char *buf, size_t recv_size){
 /*
   check whether all data packets are received
  */
-int check_data_complete(vector *recv_sessions){
+int check_data_complete(vector *recv_sessions, vector *queued_requests){
     int all_data_received = 1;
-    /* mutiple chunks will be requested from different peers, check
-       whether have received complete chunks from all of them
-    */
+    if (queued_requests->len > 0){
+      return 0;
+    }
     for (int i = 0; i < recv_sessions->len; i++){
+      //todo:need to update logic here
       udp_recv_session *cur_session = (udp_recv_session*)vec_get(recv_sessions, i);
       if (!cur_session->data_complete){
         all_data_received = 0;

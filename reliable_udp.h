@@ -75,5 +75,5 @@ void send_packet(char *ip, int port, packet_h *header, char *query, int mysock,
                  int body_size);
 void build_packet(packet_h *header, char *query, char *msg);
 int move_window(udp_recv_session *session, char *buf, size_t recv_size);
-int check_data_complete(vector *recv_sessions);
+int check_data_complete(vector *recv_sessions, vector *queued_requests);
 #endif /* _RELIABLE_UDP_H */
