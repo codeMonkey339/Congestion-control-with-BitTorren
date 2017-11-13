@@ -152,6 +152,13 @@ peer_info_t *get_peer_info(peers_t *peers, int idx){
   find the peer information based on given ip & sock
  */
 peer_info_t *find_peer_from_list(peers_t *peers, char *ip, int sock){
+  peer_info_t *p;
+  for (int i = 0; i < peers->peer.len; i++){
+    p = (peer_info_t*)vec_get(&peers->peer, i);
+    if (!strcmp(ip, p->ip) && sock == p->port){
+      return p;
+    }
+  }
   return NULL;
 }
 
@@ -162,7 +169,7 @@ peer_info_t *find_peer_from_list(peers_t *peers, char *ip, int sock){
  * int peer_idx: index of the peer
  * vector *chunk_data: the vector that will hold chunk data 
  */
-void request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx){
+int request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx, int force){
   packet_h header;
   char *query = (char*)malloc(strlen("GET") + CHUNK_HASH_SIZE + 2), *packet;
   int timer_exists = 0;
@@ -173,15 +180,16 @@ void request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx){
   packet = (char*)malloc(PACK_HEADER_BASE_LEN + strlen(query));
   peer_info_t *peer = get_peer_info(config->peer, peer_idx);
   send_packet(peer->ip, peer->port, &header, query, config->mysock, strlen(query));
-  /*
-    todo:1. check whether ip/port pair is there
-   */
+
   for (int i = 0;i < config->get_timers.len; i++){
     timer *t = (timer*)vec_get(&config->get_timers, i);
     if (!strcmp(t->ip, peer->ip) && t->sock == peer->port){
       timer_exists = 1;
       break;
     }
+  }
+  if (force){ // force request for the chunk
+    timer_exists = 0;
   }
   if (timer_exists){ // queue up the message
     request_t r;
@@ -195,7 +203,7 @@ void request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx){
   }
   free(query);
   free(packet);
-  return;
+  return timer_exists;
 }
 
 /*
@@ -408,15 +416,15 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
   for (int i = 0; i < chunks.len ;i++){
     chunk_dis *chunk_info = (chunk_dis*)vec_get(&chunks, i);
     char *chunk_msg = chunk_info->msg;
-    udp_recv_session *session = (udp_recv_session*)malloc(sizeof(udp_recv_session));
-    /*
+     /*
       naive implementation here, randomly pick a peer from the list
     */
     int idx = rand() % chunk_info->idx.len;
     int peer_idx = *(short*)vec_get(&chunk_info->idx, idx);
+    udp_recv_session *session = (udp_recv_session*)malloc(sizeof(udp_recv_session));
     build_udp_recv_session(session, peer_idx, chunk_msg, config);
-    vec_add(&config->recv_sessions, session);
-    request_chunk(config, chunk_msg, peer_idx);
+    if(!request_chunk(config, chunk_msg, peer_idx, 0))
+      vec_add(&config->recv_sessions, session);
   }
 
   /* cleanup dynamic memory */
@@ -673,7 +681,8 @@ void process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen
  3. if received all chunks, need to create a new file
  5. need to release dynamic memeory like config->udp_sender_session
  */
-void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen, int BUFLEN, bt_config_t *config, packet_h *header, int recv_size){
+void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen,
+                  int BUFLEN, bt_config_t *config, packet_h *header, int recv_size){
   static int counter = 0;
   vector *recv_sessions = &config->recv_sessions;
   char *ip = inet_ntoa(from.sin_addr);
@@ -706,6 +715,7 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
   if (recv_size >= UDP_MAX_PACK_SIZE){
     // more packets to go
   }else{
+    vec_delete(recv_sessions, session);
     session->data_complete = 1;
     if (check_data_complete(recv_sessions)){
       FILE *newfile;
@@ -718,7 +728,21 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
         fwrite(cur_session->data, 1, cur_session->buf_size, newfile);
       }
     }else{
-      //todo: need to check for queued up requests to the same host.
+      vector *queued_requests = &config->request_queue;
+      char *token;
+      for (int i = 0; i < queued_requests->len; i++){
+        request_t *r = vec_get(queued_requests, i);
+        if (!strcmp(r->ip, ip) && port == r->port){
+          token = strtok(r->chunk, " ");
+          token = strtok(NULL, " ");
+          udp_recv_session *session = (udp_recv_session*)malloc(sizeof(udp_recv_session));
+          peer_info_t *peer = find_peer_from_list(config->peer, ip, port);
+          build_udp_recv_session(session, peer->id, token, config);
+          if(!request_chunk(config, token, peer->id, 1))
+            vec_add(&config->recv_sessions, session);
+          vec_delete(queued_requests, r);
+        }
+      }
     }
   }
   counter++;
