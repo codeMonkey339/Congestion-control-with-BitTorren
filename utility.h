@@ -23,6 +23,10 @@ typedef struct vector{
   void *val;
 }vector;
 
+typedef struct data{
+  char chunk_hash[CHUNK_HASH_SIZE];
+  char *data;
+}data_t;
 
 typedef struct peer_info{
   int id;

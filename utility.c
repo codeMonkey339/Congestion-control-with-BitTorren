@@ -62,9 +62,9 @@ int vec_delete(vector *vec, void *ele){
   if (i >= vec->len){
     return -1;
   }else{
-    vec->len--;
     if (vec->len > 0){
       memmove(((char*)vec->val) + i * vec->ele_size, ((char*)vec->val) + (i + 1) * vec->ele_size, (vec->len - i - 1) * vec->ele_size);
+      vec->len--;
     }else{
       memset(vec->val, 0, vec->ele_size);
     }

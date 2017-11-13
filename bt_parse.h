@@ -65,6 +65,7 @@ struct bt_config_s {
   vector request_queue;
   /* udp sessions between host & its peers */
   vector sessions;
+  vector data;
   /* sender sessions */
   vector recv_sessions;
 };

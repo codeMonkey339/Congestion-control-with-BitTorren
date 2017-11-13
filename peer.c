@@ -421,6 +421,10 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
     */
     int idx = rand() % chunk_info->idx.len;
     int peer_idx = *(short*)vec_get(&chunk_info->idx, idx);
+    //todo: make sure that all the chunks are in order
+    data_t data;
+    strcpy(data.chunk_hash, chunk_msg);
+    vec_add(&config->data, &data);
     udp_recv_session *session = (udp_recv_session*)malloc(sizeof(udp_recv_session));
     build_udp_recv_session(session, peer_idx, chunk_msg, config);
     if(!request_chunk(config, chunk_msg, peer_idx, 0))
@@ -729,6 +733,14 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
     }else{
       vector *queued_requests = &config->request_queue;
       char *token;
+      vector *data = &config->data;
+      for (int i = 0; i < data->len; i++){
+        data_t *d = (data_t*)vec_get(data, i);
+        if (!strcmp(d->chunk_hash, session->chunk_hash)){
+          d->data = (char*)malloc(CHUNK_LEN);
+          break;
+        }
+      }
       for (int i = 0; i < queued_requests->len; i++){
         request_t *r = vec_get(queued_requests, i);
         if (!strcmp(r->ip, ip) && port == r->port){
@@ -740,6 +752,7 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
           if(!request_chunk(config, token, peer->id, 1))
             vec_add(&config->recv_sessions, new_session);
           vec_delete(queued_requests, r);
+          free(new_session);
         }
       }
     }
@@ -893,6 +906,7 @@ peers_t *load_peers(bt_config_t *config){
   init_vector(&config->sessions, sizeof(udp_session));
   init_vector(&config->desired_chunks, CHUNK_HASH_SIZE);
   init_vector(&config->recv_sessions, sizeof(udp_recv_session));
+  init_vector(&config->data, sizeof(data_t));
   if ((f = fopen(peer_list_file, "r")) == NULL){
     fprintf(stderr, "Failed to open peer_list_file %s\n", peer_list_file);
     return NULL;
