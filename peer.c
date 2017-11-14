@@ -725,6 +725,7 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
     for (int i = 0; i < data->len; i++){
       data_t *d = (data_t*)vec_get(data, i);
       if (!strcmp(d->chunk_hash, session->chunk_hash)){
+        //todo:check hash. The hash is the SHA-1 hash of the chunk
         d->data = (char*)malloc(CHUNK_LEN);
         memcpy(d->data, session->data, CHUNK_LEN);
         break;
