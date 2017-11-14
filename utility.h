@@ -26,6 +26,7 @@ typedef struct vector{
 typedef struct data{
   char chunk_hash[CHUNK_HASH_SIZE];
   char *data;
+  short own;
 }data_t;
 
 typedef struct peer_info{

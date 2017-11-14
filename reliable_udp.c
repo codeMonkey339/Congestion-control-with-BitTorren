@@ -209,18 +209,31 @@ int move_window(udp_recv_session *session, char *buf, size_t recv_size){
 /*
   check whether all data packets are received
  */
-int check_data_complete(vector *recv_sessions, vector *queued_requests){
+int check_data_complete(vector *recv_sessions, vector *queued_requests, vector *data){
     int all_data_received = 1;
-    if (queued_requests->len > 0){
-      return 0;
-    }
-    for (int i = 0; i < recv_sessions->len; i++){
-      //todo:need to update logic here
-      udp_recv_session *cur_session = (udp_recv_session*)vec_get(recv_sessions, i);
-      if (!cur_session->data_complete){
-        all_data_received = 0;
-        break;
+    for (int i = 0; i < data->len; i++){
+      data_t *d = (data_t*)vec_get(data, i);
+      if (d->own){
+        continue;
+      }else{
+        if (d->data != NULL){
+          continue;
+        }else{
+          all_data_received = 0;
+          break;
+        }
       }
     }
+    /* if (queued_requests->len > 0){ */
+    /*   return 0; */
+    /* } */
+    /* for (int i = 0; i < recv_sessions->len; i++){ */
+    /*   //todo:need to update logic here */
+    /*   udp_recv_session *cur_session = (udp_recv_session*)vec_get(recv_sessions, i); */
+    /*   if (!cur_session->data_complete){ */
+    /*     all_data_received = 0; */
+    /*     break; */
+    /*   } */
+    /* } */
     return all_data_received;
 }

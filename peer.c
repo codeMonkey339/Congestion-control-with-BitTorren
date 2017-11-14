@@ -698,7 +698,8 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
     return;
   }
   packet_h curheader;
-  if ((short)header->seqNo <= session->last_packet_acked || (short)header->seqNo > session->last_acceptable_frame){
+  if ((short)header->seqNo <= session->last_packet_acked || (short)header->seqNo >
+      session->last_acceptable_frame){
     fprintf(stdout, "Received a stray packet out of the current window\n");
     return;
   }
@@ -720,27 +721,29 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
     // more packets to go
   }else{
     session->data_complete = 1;
-    if (check_data_complete(recv_sessions, &config->request_queue)){
+    vector *data = &config->data;
+    for (int i = 0; i < data->len; i++){
+      data_t *d = (data_t*)vec_get(data, i);
+      if (!strcmp(d->chunk_hash, session->chunk_hash)){
+        d->data = (char*)malloc(CHUNK_LEN);
+        memcpy(d->data, session->data, CHUNK_LEN);
+        break;
+      }
+    }
+    if (check_data_complete(recv_sessions, &config->request_queue, &config->data)){
       FILE *newfile;
       if ((newfile = fopen(config->output_file, "w")) == NULL){
         fprintf(stderr, "Failed to create the new file %s\n", config->output_file);
         exit(1);
       }
-      for (int i = 0; i < recv_sessions->len; i++){
-        udp_recv_session *cur_session = (udp_recv_session*)vec_get(recv_sessions, i);
-        fwrite(cur_session->data, 1, cur_session->buf_size, newfile);
+      for (int i = 0; i < config->data.len; i++){
+        data_t *d = vec_get(&config->data, i);
+        fwrite(d->data, 1, CHUNK_LEN, newfile);
       }
     }else{
       vector *queued_requests = &config->request_queue;
       char *token;
-      vector *data = &config->data;
-      for (int i = 0; i < data->len; i++){
-        data_t *d = (data_t*)vec_get(data, i);
-        if (!strcmp(d->chunk_hash, session->chunk_hash)){
-          d->data = (char*)malloc(CHUNK_LEN);
-          break;
-        }
-      }
+      // check for queued_up requests and process it
       for (int i = 0; i < queued_requests->len; i++){
         request_t *r = vec_get(queued_requests, i);
         if (!strcmp(r->ip, ip) && port == r->port){
@@ -869,10 +872,17 @@ vector *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num,
         break;
       }
     }
+    data_t d; /* to record the order of chunks in somewhether */
+    strcpy(d.chunk_hash, str_i);
+    d.data = NULL;
     if (!own){
+      d.own = 0;
       vec_add(res, str_i);
       vec_add(&config->desired_chunks, str_i);
+    }else{
+      d.own = 1;
     }
+    vec_add(&config->data, &d);
   }
   *chunks_num = res->len;
   vec_free(&v1);
