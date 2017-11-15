@@ -360,7 +360,7 @@ int chunks_dis_cmp(chunk_dis *dis1, chunk_dis *dis2){
 void build_udp_recv_session(udp_recv_session *session, int peer_id, char *chunk_hash, bt_config_t *config){
   peer_info_t *peer = get_peer_info(config->peer, peer_id);
   session->last_packet_acked = 0;
-  session->last_acceptable_frame = session->last_packet_acked + 1 + DEFAULT_WINDOW_SIZE;
+  session->last_acceptable_frame = session->last_packet_acked + DEFAULT_WINDOW_SIZE;
   session->peer_id = peer_id;
   strcpy(session->ip, peer->ip);
   session->sock = peer->port;
@@ -638,8 +638,8 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
   // debug purpose
   uint32_t offset = chunk_idx * CHUNK_LEN;
   char *buffer = (char*)malloc(CHUNK_LEN);
-  fseek(f1, offset, SEEK_SET);
-  fread(buffer, 1, CHUNK_LEN, f1);
+  fseek(f1, offset, SEEK_SET); 
+ fread(buffer, 1, CHUNK_LEN, f1);
   char *new_chunk_hash = get_chunk_hash(buffer);
   if (strcmp(new_chunk_hash, token)){
     fprintf(stderr, "unmatched hash, %s\n", new_chunk_hash);
