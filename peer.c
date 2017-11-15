@@ -725,9 +725,15 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
     for (int i = 0; i < data->len; i++){
       data_t *d = (data_t*)vec_get(data, i);
       if (!strcmp(d->chunk_hash, session->chunk_hash)){
-        //todo:check hash. The hash is the SHA-1 hash of the chunk
-        d->data = (char*)malloc(CHUNK_LEN);
-        memcpy(d->data, session->data, CHUNK_LEN);
+        char *chunk_hash = get_chunk_hash(session->data);
+        if (!strcmp(chunk_hash, session->chunk_hash)){
+          d->data = (char*)malloc(CHUNK_LEN);
+          memcpy(d->data, session->data, CHUNK_LEN);
+          fprintf(stdout,"The hash of received data matches with chunk hash\n");
+        }else{
+          //todo: need to build a recovery mechanism in corrupted data
+          fprintf(stdout, "Corrupted chunk data receied due to unmatched hash\n");
+        }
         break;
       }
     }
@@ -816,9 +822,6 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
   //todo: need to release correctly
   free(buf_backup_ptr);
   free(header);
-  /* none of the above matches, corrupted message */
-  fprintf(stderr, "Corrupted incoming message from %s: %d\n%s\n\n",
-          inet_ntoa(from.sin_addr), ntohs(from.sin_port), buf);
   return;
 }
 

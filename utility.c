@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include "chunk.h"
+#include "sha.h"
 
 
 
@@ -137,4 +139,24 @@ void test_vec(){
   }
   free(vec.val);
   return;
+}
+
+/*
+  give a chunk of data, return the SHA hash of the chunk
+ */
+char *get_chunk_hash(char *chunk){
+  uint8_t *hash;
+  char *chunk_hash;
+  if ((hash = malloc(SHA1_HASH_SIZE * sizeof(uint8_t))) == NULL){
+    fprintf(stderr, "Failed to allocate memory\n");
+    exit(-1);
+  }
+  if ((chunk_hash = malloc(SHA1_HASH_SIZE * 2 + 1)) == NULL){
+    fprintf(stderr, "Failed to allocate memory\n");
+    exit(-1);
+  }
+  shahash((uint8_t*)chunk, CHUNK_LEN, hash);
+  hex2ascii(hash, SHA1_HASH_SIZE, chunk_hash);
+  free(hash);
+  return chunk_hash;
 }
