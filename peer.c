@@ -635,6 +635,15 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
     fprintf(stderr, "Cannot open master chunk file %s \n", masterfile);
     exit(1);
   }
+  // debug purpose
+  uint32_t offset = chunk_idx * CHUNK_LEN;
+  char *buffer = (char*)malloc(CHUNK_LEN);
+  fseek(f1, offset, SEEK_SET);
+  fread(buffer, 1, CHUNK_LEN, f1);
+  char *new_chunk_hash = get_chunk_hash(buffer);
+  if (strcmp(new_chunk_hash, token)){
+    fprintf(stderr, "unmatched hash, %s\n", new_chunk_hash);
+  }
   if (session->f== NULL){ // init session struct
     init_session(session, 8, 8, config->identity, 0, f1, from_ip, port);
   }
@@ -704,13 +713,13 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
     return;
   }
   if ((session->last_packet_acked + 1) == (short)header->seqNo){
-    forward_n = move_window(session, buf, recv_size);
+    forward_n = move_window(session, buf, recv_size, header->seqNo);
     build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0, session->last_packet_acked);
   }else{
     build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0, session->last_packet_acked);
     if ((uint32_t)session->last_packet_acked < header->seqNo){
       // assume: every packet is of the fixed size???
-      memcpy(session->data + (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN) * header->seqNo, buf, recv_size - PACK_HEADER_BASE_LEN);
+      memcpy(session->data + (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN) * (header->seqNo - 1), buf, recv_size - PACK_HEADER_BASE_LEN);
       session->buf_size += recv_size - PACK_HEADER_BASE_LEN;
       session->recved_flags[header->seqNo - session->last_packet_acked - 1] = 1;
     }
@@ -734,6 +743,7 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
           //todo: need to build a recovery mechanism in corrupted data
           fprintf(stdout, "Corrupted chunk data receied due to unmatched hash\n");
         }
+        free(chunk_hash);
         break;
       }
     }

@@ -184,11 +184,11 @@ void build_packet(packet_h *header, char *query, char *msg){
 /*
   check the flag array, move forward the window if possible
  */
-int move_window(udp_recv_session *session, char *buf, size_t recv_size){
+int move_window(udp_recv_session *session, char *buf, size_t recv_size, int header_seqNo){
   size_t index;
   size_t arr_size = sizeof(session->recved_flags) /sizeof(session->recved_flags[0]);
-
-  memcpy(session->data + session->buf_size, buf, recv_size - PACK_HEADER_BASE_LEN);
+  //todo: the way to copy data is wrong
+  memcpy(session->data + (header_seqNo - 1) * (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN), buf, recv_size - PACK_HEADER_BASE_LEN);
   session->buf_size += recv_size - PACK_HEADER_BASE_LEN;
   session->recved_flags[0] = 1;
   for (index = 0; index < arr_size; index++){
