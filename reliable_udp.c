@@ -157,14 +157,14 @@ void send_packet(char *ip, int port, packet_h *header, char *query, int mysock, 
     msg = (char*)malloc(header->headerLen);
   }
 
-  build_packet(header, query, msg);
+  build_packet(header, query, msg, body_size);
   send_udp_packet_with_sock(ip, port, msg, mysock, header->headerLen + body_size);
   free(msg);
   return;
 }
 
 
-void build_packet(packet_h *header, char *query, char *msg){
+void build_packet(packet_h *header, char *query, char *msg, size_t query_len){
   /* there is no endian problem for a single byte */
   uint16_t magicNo = htons(header->magicNo);
   uint16_t headerLen = htons(header->headerLen);
@@ -180,7 +180,7 @@ void build_packet(packet_h *header, char *query, char *msg){
   memcpy(msg + 12, &ackNo, 4);
   //todo: possibly there are extended headers
   if (query != NULL){
-    memcpy(msg + header->headerLen, query, strlen(query));
+    memcpy(msg + header->headerLen, query, query_len);
   }
   return;
 }
