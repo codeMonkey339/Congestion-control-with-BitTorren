@@ -96,5 +96,5 @@ int vec_delete(vector *vec, void *ele);
 int read_from_sock(int sock, char *buf, int BUFLEN);
 void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf);
 void test_vec();
-char *get_chunk_hash(char *chunk);
+char *get_chunk_hash(char *chunk, size_t size);
 #endif

@@ -639,8 +639,8 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
   uint32_t offset = chunk_idx * CHUNK_LEN;
   char *buffer = (char*)malloc(CHUNK_LEN);
   fseek(f1, offset, SEEK_SET); 
- fread(buffer, 1, CHUNK_LEN, f1);
-  char *new_chunk_hash = get_chunk_hash(buffer);
+  fread(buffer, 1, CHUNK_LEN, f1);
+  char *new_chunk_hash = get_chunk_hash(buffer, CHUNK_LEN);
   if (strcmp(new_chunk_hash, token)){
     fprintf(stderr, "unmatched hash, %s\n", new_chunk_hash);
   }
@@ -713,13 +713,18 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
     return;
   }
   if ((session->last_packet_acked + 1) == (short)header->seqNo){
+    //debug purpse
+    char *packet_hash = get_chunk_hash(buf, recv_size - PACK_HEADER_BASE_LEN);
+    fprintf(stdout, "packet hash is %s\n", packet_hash);
+    free(packet_hash);
     forward_n = move_window(session, buf, recv_size, header->seqNo);
     build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0, session->last_packet_acked);
   }else{
     build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0, session->last_packet_acked);
     if ((uint32_t)session->last_packet_acked < header->seqNo){
       // assume: every packet is of the fixed size???
-      memcpy(session->data + (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN) * (header->seqNo - 1), buf, recv_size - PACK_HEADER_BASE_LEN);
+      memcpy(session->data + (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN) *
+             (header->seqNo - 1), buf, recv_size - PACK_HEADER_BASE_LEN );
       session->buf_size += recv_size - PACK_HEADER_BASE_LEN;
       session->recved_flags[header->seqNo - session->last_packet_acked - 1] = 1;
     }
@@ -734,7 +739,7 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
     for (int i = 0; i < data->len; i++){
       data_t *d = (data_t*)vec_get(data, i);
       if (!strcmp(d->chunk_hash, session->chunk_hash)){
-        char *chunk_hash = get_chunk_hash(session->data);
+        char *chunk_hash = get_chunk_hash(session->data, CHUNK_LEN);
         if (!strcmp(chunk_hash, session->chunk_hash)){
           d->data = (char*)malloc(CHUNK_LEN);
           memcpy(d->data, session->data, CHUNK_LEN);

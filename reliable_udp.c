@@ -86,6 +86,10 @@ void send_udp_packet_r(udp_session *session, char *from_ip, int port,
         size_t packet_body_size = UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN;
         size_t bytes_to_send = (CHUNK_LEN - session->sent_bytes)>packet_body_size?packet_body_size:(CHUNK_LEN - session->sent_bytes);
         if ((packSize = fread(filebuf, 1, bytes_to_send, session->f)) > 0){
+          // debug purpose
+          char *packet_hash = get_chunk_hash(filebuf, bytes_to_send);
+          fprintf(stdout, "packet hash is %s\n", packet_hash);
+          free(packet_hash);
           build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize,
                        session->last_packet_sent + 1, session->last_packet_acked);
           send_packet(from_ip, port, &cur_header, filebuf, mysock, packSize);

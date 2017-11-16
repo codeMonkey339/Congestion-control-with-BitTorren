@@ -144,7 +144,7 @@ void test_vec(){
 /*
   give a chunk of data, return the SHA hash of the chunk
  */
-char *get_chunk_hash(char *chunk){
+char *get_chunk_hash(char *chunk, size_t size){
   uint8_t *hash;
   char *chunk_hash;
   if ((hash = malloc(SHA1_HASH_SIZE * sizeof(uint8_t))) == NULL){
@@ -155,7 +155,7 @@ char *get_chunk_hash(char *chunk){
     fprintf(stderr, "Failed to allocate memory\n");
     exit(-1);
   }
-  shahash((uint8_t*)chunk, CHUNK_LEN, hash);
+  shahash((uint8_t*)chunk, size, hash);
   hex2ascii(hash, SHA1_HASH_SIZE, chunk_hash);
   free(hash);
   return chunk_hash;
