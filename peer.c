@@ -421,10 +421,6 @@ void send_get_queries(bt_config_t *config, vector *ihave_msgs){
     */
     int idx = rand() % chunk_info->idx.len;
     int peer_idx = *(short*)vec_get(&chunk_info->idx, idx);
-    //todo: make sure that all the chunks are in order
-    data_t data;
-    strcpy(data.chunk_hash, chunk_msg);
-    vec_add(&config->data, &data);
     udp_recv_session *session = (udp_recv_session*)malloc(sizeof(udp_recv_session));
     build_udp_recv_session(session, peer_idx, chunk_msg, config);
     if(!request_chunk(config, chunk_msg, peer_idx, 0))
