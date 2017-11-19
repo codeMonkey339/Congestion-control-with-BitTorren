@@ -1,0 +1,8 @@
+* replace common data structures
+** vector
+
+* abstarct the network layer
+** challenge: the network layer is implemented on application
+   layer, challenge lies in how to separte application code & network
+   code.
+*

@@ -1,0 +1,4 @@
+tests for reliable communication
+1. test case for 3 peers. Need to get data from 3 peers
+2. test case for timeout
+3. test case for peer crash, after replying IHAVE Message, then make the peer crash
