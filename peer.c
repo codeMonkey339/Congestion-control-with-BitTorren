@@ -28,6 +28,7 @@
 #include <errno.h>
 #include "packet.h"
 #include <math.h>
+#include "packet.h"
 
 
 
@@ -61,7 +62,7 @@ int main(int argc, char **argv) {
     bt_dump_config(&config);
   }
 #endif
-  
+
   peer_run(&config);
   return 0;
 }
@@ -108,28 +109,6 @@ udp_recv_session *find_recv_session(vector *recv_sessions, char *ip, int sock){
   return NULL;
 }
 
-packet_h * parse_packet(char **buf){
-  char *start = *buf;
-  packet_h *header = (packet_h*)malloc(sizeof(packet_h));
-  header->magicNo = ntohs(*(uint16_t*)start);
-  header->versionNo = *(uint8_t*)(start + 2);
-  header->packType = *(uint8_t*)(start + 3);
-  header->headerLen = ntohs(*(uint16_t*)(start + 4));
-  header->packLen = ntohs(*(uint16_t*)(start + 6));
-  header->seqNo = ntohl(*(uint32_t*)(start + 8));
-  header->ackNo = ntohl(*(uint32_t*)(start + 12));
-  if (header->magicNo != 15441 || header->versionNo != 1){
-    return NULL;
-  }
-  //todo: possible extension of packet header
-  if (header->packLen != header->headerLen){
-    *buf = start + header->headerLen;
-  }else{
-    *buf = NULL;
-  }
-  return header;
-}
-
 
 /*
  * peers_t *peers: a pointer to all peers
@@ -167,7 +146,7 @@ peer_info_t *find_peer_from_list(peers_t *peers, char *ip, int sock){
  * bt_config_t *config: the config struct
  * char *chunk_msg: the chunk hash
  * int peer_idx: index of the peer
- * vector *chunk_data: the vector that will hold chunk data 
+ * vector *chunk_data: the vector that will hold chunk data
  */
 int request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx, int force){
   packet_h header;
@@ -341,7 +320,7 @@ void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t from
 
 
 /*
-  this function is a comparator to sort chunk_dis struct 
+  this function is a comparator to sort chunk_dis struct
  */
 int chunks_dis_cmp(chunk_dis *dis1, chunk_dis *dis2){
   if (dis1->idx.len > dis2->idx.len){
@@ -456,7 +435,7 @@ void remove_timer(vector *cur_timer, char *ip, int sock){
 
 /*
  *  char *buf: the incoming message has been read and stored in this
- * 
+ *
  *  process IHAVE message from a peer.
  *
  *  BitTorrent uses a "rarest-chunk-first" heuristic where it tries to
@@ -474,7 +453,7 @@ void process_ihave(int sock, char *buf, struct sockaddr_in from,
   //todo: what if receive the reply after time out? check whether has received from the peer
   char *token, *ip, peer_idx, *next_space, *buf_backup;
   int ihave_nums;
-  
+
   ip = inet_ntoa(from.sin_addr);
   /* get the peer_id of the incoming packet */
   for (int i = 0; i < config->peer->peer.len; i++){
@@ -484,7 +463,7 @@ void process_ihave(int sock, char *buf, struct sockaddr_in from,
       break;
     }
   }
-  
+
   /* parse the IHAVE reply message */
   buf_backup = (char*)malloc(strlen(buf) + 1);
   strcpy(buf_backup, buf);
@@ -634,7 +613,7 @@ void process_peer_get(int sock, char *buf, struct sockaddr_in from,
   // debug purpose
   uint32_t offset = chunk_idx * CHUNK_LEN;
   char *buffer = (char*)malloc(CHUNK_LEN);
-  fseek(f1, offset, SEEK_SET); 
+  fseek(f1, offset, SEEK_SET);
   fread(buffer, 1, CHUNK_LEN, f1);
   char *new_chunk_hash = get_chunk_hash(buffer, CHUNK_LEN);
   if (strcmp(new_chunk_hash, token)){
@@ -783,15 +762,16 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
   return;
 }
 
-/*
- * int sock: socket # that has incoming messages
- *
- * vector *ihave_msgs: should not be a separate argument, instead, it
- * should be placed within config in a proper way
+/**
+ * entry point to process inbound udp packets, different types of packets
+ * will handled separately
+ * @param sock the socket that the current packet is received from
+ * @param config config file of the current peer
  */
-void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
-  /* what is the scope of this #define macro */
-#define BUFLEN 1500
+void process_inbound_udp(int sock, bt_config_t *config) {
+  /* can write #define everywhere since the preprocessor is not aware of the
+   * program */
+  #define BUFLEN 1500
   struct sockaddr_in from;
   socklen_t fromlen;
   char buf[BUFLEN], *buf_backup, *token, *buf_backup_ptr;
@@ -799,9 +779,8 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
 
   memset(buf, 0, BUFLEN);
   fromlen = sizeof(from);
-  /* read from available socket into buf, don't care about
-     reliability here */
-  recv_size = spiffy_recvfrom(sock, buf, BUFLEN, 0, (struct sockaddr *) &from, &fromlen);
+  recv_size = spiffy_recvfrom(sock, buf, BUFLEN, 0, (struct sockaddr *)
+          &from, &fromlen);
   if ((buf_backup = (char*)malloc(BUFLEN)) == NULL){
     fprintf(stderr, "malloc failed in process_inbound_upd\n");
     return;
@@ -813,18 +792,22 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
     fprintf(stderr, "Have received an invalid packet \n");
     return;
   }
+  //todo: C support native enum, replace here
   if (header->packType == 0){
-    process_whohas(sock, buf + header->headerLen, from, fromlen, BUFLEN, config, header);
+    process_whohas(sock, buf + header->headerLen, from, fromlen, BUFLEN,
+                   config, header);
   }else if (header->packType == 1){
-    process_ihave(sock, buf + header->headerLen, from, fromlen, BUFLEN, config, ihave_msgs, header);
+    process_ihave(sock, buf + header->headerLen, from, fromlen, BUFLEN,
+                  config, &config->ihave_msgs, header);
   }else if (header->packType == 2){
-    process_peer_get(sock, buf + header->headerLen, from, fromlen, BUFLEN, config, header);
+    process_peer_get(sock, buf + header->headerLen, from, fromlen, BUFLEN,
+                     config, header);
   }else if (header->packType == 3){
-    //todo: process data packet
-    process_data(sock, buf + header->headerLen, from, fromlen, BUFLEN, config, header, recv_size);
+    process_data(sock, buf + header->headerLen, from, fromlen, BUFLEN, config,
+                 header, recv_size);
   }else if (header->packType == 4){
-    //todo: ack packet
-    process_ack(sock, buf + header->headerLen, from, fromlen, BUFLEN, config, header);
+    process_ack(sock, buf + header->headerLen, from, fromlen, BUFLEN, config,
+                header);
   }else if (header->packType == 5){
     //todo: denied packet
   }else{
@@ -851,6 +834,8 @@ void process_inbound_udp(int sock, bt_config_t *config, vector *ihave_msgs) {
  *
  * given a chunkfile and current peer's has_chunk_file, only keep
  * those chunks in chunkfile that are not in has_chunk_file
+ *
+ * todo: need to break down into smaller function, provide vector diff function
  */
 vector *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num, bt_config_t *config){
   FILE *f1, *f2;
@@ -865,7 +850,7 @@ vector *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num,
   //todo: change impl
   init_vector(&v1, CHUNK_HASH_SIZE);
   init_vector(&v2, CHUNK_HASH_SIZE);
-  
+
   if ((f1 = fopen(chunkfile, "r")) == NULL){
     fprintf(stderr, "Error opening chunkfile %s \n", chunkfile);
     return NULL;
@@ -890,6 +875,7 @@ vector *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num,
     data_t d; /* to record the order of chunks in somewhether */
     strcpy(d.chunk_hash, str_i);
     d.data = NULL;
+    // this is mixture of logc, a few layers have been crossed
     if (!own){
       d.own = 0;
       vec_add(res, str_i);
@@ -993,7 +979,7 @@ vector *build_query(vector *filtered_chunks, unsigned int chunks_num){
     vec_add(res, query);
     chunks_num -= num;
   }
-  
+
   return res;
 }
 
@@ -1025,35 +1011,57 @@ void flood_peers_query(peers_t *peers, vector *queries, bt_config_t *config){
 
   return;
 }
-/*
+
+
+/**
   need to parse user's command and send requests to server and
   peers
+ * @param chunkfile file contains chunks to be downloaded
+ * @param outputfile
+ * @param config
+ */
+void process_get(char *chunkfile, char *outputfile, bt_config_t *config) {
+  //todo: need to extract this into the job module
+  FILE *f1, *f2;
+  vector v1, v2;
 
-  reliable transfer: only data packets will be transmitted reliably
+  init_vector(&v1, CHUNK_HASH_SIZE);
+  init_vector(&v2, CHUNK_HASH_SIZE);
 
-  testing:
-  1. create chunk files for testing purpose
-  2. how to proceed with unit testing?
-  * for small stuff, you can conditionally compile these tests in the
-  same file in which you have defined them
-  * write separate "test_foo.c" files that use the functions in the
-  foo file. The advantage is that it also enforces better modularization
-
-*/
-void process_get(char *chunkfile, char *outputfile, bt_config_t *config, vector *ihave_msgs) {
-  int chunks_num;
-  vector *filtered_chunks;
-  if ((filtered_chunks = filter_chunkfile(chunkfile, config->has_chunk_file, &chunks_num, config)) == NULL){
-    fprintf(stderr, "Error filtering chunk files that are in own hash-chunk-file \n");
-    exit(1);
+  if ((f1 = fopen(chunkfile, "r")) == NULL){
+    fprintf(stderr, "Error opening chunkfile %s \n", chunkfile);
+    exit(-1);
   }
-  vector *query = build_query(filtered_chunks, chunks_num);
+  if ((f2 = fopen(config->has_chunk_file, "r")) == NULL){
+    fprintf(stderr, "Error opening has_chunk_file %s\n",
+            config->has_chunk_file);
+    exit(-1);
+  }
+
+  read_chunk(f1, &v1);
+  read_chunk(f2, &v2);
+  vector *diff_chunk_hash = vec_diff(&v1, &v2);
+  vector *common_chunk_hash = vec_common(&v1, &v2);
+
+  for (int i = 0;i < diff_chunk_hash->len; i++){
+    vec_add(&config->desired_chunks, vec_get(diff_chunk_hash, i));
+  }
+  for (int i = 0; i < common_chunk_hash->len; i++){
+    data_t d;
+    strcpy(d.chunk_hash, vec_get(common_chunk_hash, i));
+    d.data = NULL;
+    vec_add(&config->data, &d);
+  }
+
+  vector *query = build_query(diff_chunk_hash, diff_chunk_hash->len);
   flood_peers_query(config->peer, query, config);
-  /* allocated in filter_chunkfile function */
+
   vec_free(query);
   free(query);
-  vec_free(filtered_chunks);
-  free(filtered_chunks);
+  vec_free(diff_chunk_hash);
+  free(diff_chunk_hash);
+  vec_free(common_chunk_hash);
+  free(common_chunk_hash);
   return;
 }
 
@@ -1067,9 +1075,11 @@ void process_get(char *chunkfile, char *outputfile, bt_config_t *config, vector 
  * this command will ask your peer to fetch all chunks listed in /tmp/B.chunks
  *
  * for requests coming from other peer:
- * 
+ * @param line the commandline input from user console
+ * @param cbdata
+ * @param config the config of current peer
  */
-void handle_user_input(char *line, void *cbdata, bt_config_t *config, vector *ihave_msgs) {
+void handle_user_input(char *line, void *cbdata, bt_config_t *config) {
   char chunkf[128], outf[128];
 
   bzero(chunkf, sizeof(chunkf));
@@ -1080,7 +1090,7 @@ void handle_user_input(char *line, void *cbdata, bt_config_t *config, vector *ih
    */
   if (sscanf(line, "GET %120s %120s", chunkf, outf)) {
     if (strlen(outf) > 0) {
-      process_get(chunkf, outf, config, ihave_msgs);
+      process_get(chunkf, outf, config);
     }
   }
 }
@@ -1094,7 +1104,7 @@ void handle_user_input(char *line, void *cbdata, bt_config_t *config, vector *ih
  */
 void check_for_timeouts(bt_config_t *config){
   // need to check timeouts in other sessions
-  
+
   /* check for whohas timeouts */
   for (int i = 0; i < config->whohas_timers.len; i++){
     clock_t cur = clock();
@@ -1110,7 +1120,6 @@ void check_for_timeouts(bt_config_t *config){
   }
   return;
 }
-
 
 void release_all_peers(bt_config_t *config){
   for (int i = 0; i < config->peer->peer.len; i++){
@@ -1162,13 +1171,13 @@ void peer_run(bt_config_t *config) {
   }
 
   config->mysock = sock;
-  /* peers will remain unchanged, load them at the beginning */
+  /* load peer should be moved to a proper place */
   if (load_peers(config) == NULL){
     fprintf(stderr, "Error loading peers from peer file \n");
     exit(1);
   }
   spiffy_init(config->identity, (struct sockaddr *)&myaddr, sizeof(myaddr));
-  
+
   while (1) {
     int nfds;
     FD_SET(STDIN_FILENO, &readfds);
@@ -1177,12 +1186,12 @@ void peer_run(bt_config_t *config) {
     nfds = select(sock+1, &readfds, NULL, NULL, NULL);
     if (nfds > 0) {
       if (FD_ISSET(sock, &readfds)) {
-	process_inbound_udp(sock, config, &config->ihave_msgs);
+	process_inbound_udp(sock, config);
       }
 
       if (FD_ISSET(STDIN_FILENO, &readfds)) {
 	process_user_input(STDIN_FILENO, userbuf, handle_user_input,
-			   "Currently unused", config, &config->ihave_msgs);
+			   "Currently unused", config);
       }
     }
     check_for_timeouts(config);

@@ -97,4 +97,6 @@ int read_from_sock(int sock, char *buf, int BUFLEN);
 void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf);
 void test_vec();
 char *get_chunk_hash(char *chunk, size_t size);
+vector *vec_diff(vector *v1, vector *v2);
+vector *vec_common(vector *v1, vector *v2);
 #endif

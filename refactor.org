@@ -6,3 +6,18 @@
    layer, challenge lies in how to separte application code & network
    code.
 *
+* separation of concerns
+** there will be different modules, don't randomly use a module in another one, try to combine them in the main program
+** for example, packet handling and packet sending should fall into different modules, and they will be used in main file
+* handler functions?
+** for each type of packet, there will be a handler, how to organize these handler functions?
+* try to group things as much as possible
+** for example, I know there should be a session. Above session, there should be another abstract entity job which consists of multiple sessions
+* connection/session pool?
+** should there be a connection/session pool? If so, which entity should manage the pool?
+* timeout mechanism should be hierarchical
+** there will be different types of timeout, and they should be handled separately. There is a transition of state for each peer
+** send_get -> get reply -> establish connection -> download chunk
+           |-> timeout mechanism -------------> |-> peer crash after timeout limits
+** each session should have a state. Based on this state, handle timeout accordingly
+** by right, the timeout should be handled by timer. In that case, timer will import peer information --> wrong, store the info in timer

@@ -97,6 +97,60 @@ void *vec_contains(vector *vec, void *ele){
   return NULL;
 }
 
+/**
+ * find elements in v1 but not v2
+ * @param v1 the vector with more elements
+ * @param v2 the vector with less elements
+ * @return the elements which are in v1 not v2
+ */
+vector *vec_diff(vector *v1, vector *v2){
+  vector *res = (vector*)malloc(sizeof(vector));
+  init_vector(res, v1->ele_size);
+  if (v1->len == 0){
+    return res;
+  }
+  for (int i = 0; i < v1->len; i++){
+    void *ele1 = vec_get(v1, i);
+    short own = 0;
+    for (int j = 0; j < v2->len; j++){
+      void *ele2 = vec_get(v2, j);
+      if (!memcmp(ele1, ele2, v1->ele_size)){
+        own = 1;
+        break;
+      }
+    }
+    if (!own){
+      vec_add(res, ele1);
+    }
+  }
+  return res;
+}
+/**
+ * find elements in both v1 & v2
+ * @param v1
+ * @param v2
+ * @return
+ */
+vector *vec_common(vector *v1, vector *v2){
+  vector *res = (vector*)malloc(sizeof(vector));
+  init_vector(res, v1->ele_size);
+  if (v1->len == 0 || v2->len == 0){
+    return res;
+  }
+  for (int i = 0; i < v1->len; i++){
+    void *ele1 = vec_get(v1, i);
+    for (int j = 0; j < v2->len; j++){
+      void *ele2 = vec_get(v2, j);
+      if (!memcmp(ele1, ele2, v1->ele_size)){
+        vec_add(res, ele1);
+        break;
+      }
+    }
+  }
+  return res;
+}
+
+
 int read_from_sock(int sock, char *buf, int BUFLEN){
   int len = 0;
   if ((len == read_from_sock(sock, buf, BUFLEN)) < 0){
