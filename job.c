@@ -1,4 +1,5 @@
 #include "job.h"
+#include "packet.h"
 
 /**
  * initialize the job struct with necessary information
@@ -61,4 +62,12 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     vec_free(common_chunk_hash);
     free(common_chunk_hash);
     return;
+}
+
+
+void job_flood_whohas_msg(vector *peers, char *query_msg, job_t *job){
+    packet_h header;
+    build_packet_header(&header, 15441, 1, 0, PACK_HEADER_BASE_LEN,
+                        PACK_HEADER_BASE_LEN + strlen(query_msg), 0, 0);
+    //todo: need to flood the message to all peers
 }

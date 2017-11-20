@@ -27,5 +27,8 @@ typedef struct packet_b{
 }packet_b;
 
 packet_h * parse_packet(char **buf);
+void build_packet_header(packet_h *header, int magicNo, int versionNo, int packType,
+                         int headerLen, int packLen, int seqNo, int ackNo);
+
 
 #endif

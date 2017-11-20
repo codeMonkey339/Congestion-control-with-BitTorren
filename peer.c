@@ -994,9 +994,9 @@ void flood_peers_query(peers_t *peers, vector *queries, bt_config_t *config){
  * @param config
  */
 void process_get(char *chunkfile, char *outputfile, bt_config_t *config) {
-  job_t *job = job_init(chunkfile, outputfile, config);
-  char *whohas_query = build_whohas_query(job->chunks_to_download);
-  flood_peers_query(config->peer, query, config);
+  config->job = job_init(chunkfile, outputfile, config);
+  char *whohas_query = build_whohas_query(config->job->chunks_to_download);
+  flood_peers_query(config->peer, whohas_query, config->job);
 
   free(whohas_query);
 

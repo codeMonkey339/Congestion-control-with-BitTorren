@@ -22,4 +22,5 @@ typedef struct job_t{
 }job_t;
 
 job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config);
+void job_flood_whohas_msg(vector *peers, char *query_msg, job_t *job);
 #endif

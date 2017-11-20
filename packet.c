@@ -25,3 +25,26 @@ packet_h * parse_packet(char **buf){
     }
     return header;
 }
+
+/**
+ * build of packet header
+ * @param header
+ * @param magicNo
+ * @param versionNo
+ * @param packType
+ * @param headerLen
+ * @param packLen
+ * @param seqNo
+ * @param ackNo
+ */
+void build_packet_header(packet_h *header, int magicNo, int versionNo, int packType,
+                         int headerLen, int packLen, int seqNo, int ackNo){
+    header->magicNo = magicNo;
+    header->versionNo = versionNo;
+    header->packType = packType;
+    header->headerLen = headerLen;
+    header->packLen = packLen;
+    header->seqNo = seqNo;
+    header->ackNo = ackNo;
+    return;
+}

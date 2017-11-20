@@ -17,6 +17,7 @@
 #include <netinet/in.h>
 #include "utility.h"
 #include "reliable_udp.h"
+#include "job.h"
 
 #define BT_FILENAME_LEN 255
 #define BT_MAX_PEERS 1024
@@ -68,6 +69,8 @@ struct bt_config_s {
   vector data;
   /* sender sessions */
   vector recv_sessions;
+  /* the current job that is executing */
+  job_t *job;
 };
 typedef struct bt_config_s bt_config_t;
 
