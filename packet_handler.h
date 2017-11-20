@@ -1,7 +1,9 @@
 #ifndef __PACKET_HANDLER__
 #define __PACKET_HANDLER__
 
-//todo: move all the packet handler functions to here
+
+char *build_whohas_query(vector *chunks_to_download);
+
 
 #endif
 

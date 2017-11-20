@@ -29,7 +29,8 @@
 #include "packet.h"
 #include <math.h>
 #include "packet.h"
-
+#include "job.h"
+#include "packet_handler.h"
 
 
 
@@ -954,34 +955,6 @@ peers_t *load_peers(bt_config_t *config){
   return peers;
 }
 
-/*
- * query example: WHOHAS 2 000...015 0000..00441
- */
-vector *build_query(vector *filtered_chunks, unsigned int chunks_num){
-  vector *res = (vector*)malloc(sizeof(vector));
-  init_vector(res, UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN);
-  int cnt = 0;
-
-  while(chunks_num > 0){
-    int num = CHUNK_NUM_PER_PACK > chunks_num?chunks_num:CHUNK_NUM_PER_PACK;
-    int buf_len = strlen("whohas") + sizeof(int) + num * CHUNK_HASH_SIZE + 2;
-    char *query = (char*)malloc(buf_len);
-    memset(query, 0, buf_len);
-    strcat(query, "WHOHAS ");
-    sprintf(query + strlen(query), "%d ", num);
-    for (int i = 0; i < num; i++){
-      char *hash = vec_get(filtered_chunks, cnt++);
-      strcat(query, hash);
-      if (i != (num - 1)){
-        strcat(query, " ");
-      }
-    }
-    vec_add(res, query);
-    chunks_num -= num;
-  }
-
-  return res;
-}
 
 /*
  * peers_t peers: contains a list of peers info
@@ -1021,47 +994,12 @@ void flood_peers_query(peers_t *peers, vector *queries, bt_config_t *config){
  * @param config
  */
 void process_get(char *chunkfile, char *outputfile, bt_config_t *config) {
-  //todo: need to extract this into the job module
-  FILE *f1, *f2;
-  vector v1, v2;
-
-  init_vector(&v1, CHUNK_HASH_SIZE);
-  init_vector(&v2, CHUNK_HASH_SIZE);
-
-  if ((f1 = fopen(chunkfile, "r")) == NULL){
-    fprintf(stderr, "Error opening chunkfile %s \n", chunkfile);
-    exit(-1);
-  }
-  if ((f2 = fopen(config->has_chunk_file, "r")) == NULL){
-    fprintf(stderr, "Error opening has_chunk_file %s\n",
-            config->has_chunk_file);
-    exit(-1);
-  }
-
-  read_chunk(f1, &v1);
-  read_chunk(f2, &v2);
-  vector *diff_chunk_hash = vec_diff(&v1, &v2);
-  vector *common_chunk_hash = vec_common(&v1, &v2);
-
-  for (int i = 0;i < diff_chunk_hash->len; i++){
-    vec_add(&config->desired_chunks, vec_get(diff_chunk_hash, i));
-  }
-  for (int i = 0; i < common_chunk_hash->len; i++){
-    data_t d;
-    strcpy(d.chunk_hash, vec_get(common_chunk_hash, i));
-    d.data = NULL;
-    vec_add(&config->data, &d);
-  }
-
-  vector *query = build_query(diff_chunk_hash, diff_chunk_hash->len);
+  job_t *job = job_init(chunkfile, outputfile, config);
+  char *whohas_query = build_whohas_query(job->chunks_to_download);
   flood_peers_query(config->peer, query, config);
 
-  vec_free(query);
-  free(query);
-  vec_free(diff_chunk_hash);
-  free(diff_chunk_hash);
-  vec_free(common_chunk_hash);
-  free(common_chunk_hash);
+  free(whohas_query);
+
   return;
 }
 
