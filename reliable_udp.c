@@ -92,7 +92,10 @@ void send_udp_packet_r(udp_session *session, char *from_ip, int port,
           free(packet_hash);
           build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize,
                        session->last_packet_sent + 1, session->last_packet_acked);
-          send_packet(from_ip, port, &cur_header, filebuf, mysock, packSize);
+          packet_m *packet = packet_message_builder(&cur_header, filebuf,
+                                                    packSize);
+          send_packet(from_ip, port, packet, mysock);
+          free(packet);
           fprintf(stdout, "offset is %u\n", offset);
           if (bytes_to_send != (uint32_t)packSize){
             fprintf(stderr, "bytes to send is %u and actual # of bytes is %u\n", bytes_to_send, packSize);
@@ -111,7 +114,9 @@ void send_udp_packet_r(udp_session *session, char *from_ip, int port,
         if ((packSize = fread(filebuf, 1, UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN, session->f)) > 0){
           build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN, packSize,
                        i + 1, session->last_packet_acked);
-          send_packet(from_ip, port, &cur_header, filebuf, mysock, packSize);
+          packet_m *packet = packet_message_builder(&cur_header, filebuf,
+                                                     packSize);
+          send_packet(from_ip, port, packet, mysock);
           if (i == 0){
             /* only add timer for the repeated packet */
             add_timer(&session->timers, from_ip, port, &cur_header, filebuf);
@@ -143,22 +148,25 @@ void build_header(packet_h *header, int magicNo, int versionNo, int packType, in
   return;
 }
 
-/*
- * packet_h *header: the packet header
- * char *query: the packet body
- *
- * given the packet header & packet body, send the packet to recipient
+/**
+ * most top level function of sending packets in reliable_udp module
+ * @param ip
+ * @param port
+ * @param packet_msg a pointer to packet_m
+ * @param mysock the socket through which my packets are sent
  */
-void send_packet(char *ip, int port, packet_h *header, char *query, int mysock, int body_size){
+void send_packet(char *ip, int port, packet_m *packet_msg, int mysock){
   char *msg;
-  if (query != NULL){
-    msg = (char*)malloc(header->headerLen + body_size);
+  if (packet_msg->body_len != 0){
+    msg = (char*)malloc(packet_msg->header.headerLen + packet_msg->body_len);
   }else{
-    msg = (char*)malloc(header->headerLen);
+    msg = (char*)malloc(packet_msg->header.headerLen);
   }
 
-  build_packet(header, query, msg, body_size);
-  send_udp_packet_with_sock(ip, port, msg, mysock, header->headerLen + body_size);
+  build_packet(&packet_msg->header, packet_msg->body, msg,
+               packet_msg->body_len);
+  send_udp_packet_with_sock(ip, port, msg, mysock,
+                            packet_msg->header.headerLen +packet_msg->body_len);
   free(msg);
   return;
 }
@@ -246,3 +254,4 @@ int check_data_complete(vector *recv_sessions, vector *queued_requests, vector *
     /* } */
     return all_data_received;
 }
+

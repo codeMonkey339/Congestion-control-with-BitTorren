@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include "utility.h"
 #include "packet.h"
+#include "constants.h"
 
 #define DEFAULT_WINDOW_SIZE 8
 
@@ -65,14 +66,16 @@ typedef struct udp_session{
   //char *buf; /* buffer to hold necessary sent chunks */
 }udp_session;
 
+
+
+
 void send_udp_packet(char *ip, int port, char *msg);
 void send_udp_packet_with_sock(char *ip, int port_no, char *msg, int sock, int size);
 void send_udp_packet_r(udp_session *session, char *from_ip, int port,
                        int mysock, int timeout);
 void build_header(packet_h *header, int magicNo, int versionNo, int packType,
                   int headerLen, int packLen, int seqNo, int ackNo);
-void send_packet(char *ip, int port, packet_h *header, char *query, int mysock,
-                 int body_size);
+void send_packet(char *ip, int port, packet_m *packet, int mysock);
 void build_packet(packet_h *header, char *query, char *msg, size_t query_len);
 int move_window(udp_recv_session *session, char *buf, size_t recv_size, int header_seqNo);
 int check_data_complete(vector *recv_sessions, vector *queued_requests, vector *data);

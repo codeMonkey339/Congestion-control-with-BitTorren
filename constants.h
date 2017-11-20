@@ -11,6 +11,19 @@
 /* Chunk hashes have a fixed length of 20 bytes */
 #define CHUNK_HASH_SIZE 45 * sizeof(char)
 #define CHUNK_LEN 524288 /* chunk size is 512kB*/
+/* packet header length */
+#define PACK_HEADER_BASE_LEN 16
+
+
+enum PACKET_TYPE{
+    WHOHAS = 0,
+    IHAVE = 1,
+    GET = 2,
+    DATA= 3,
+    ACK = 4,
+    DENIED = 5
+};
+
 
 
 #endif

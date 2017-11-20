@@ -31,6 +31,7 @@
 #include "packet.h"
 #include "job.h"
 #include "packet_handler.h"
+#include "constants.h"
 
 
 
@@ -794,19 +795,19 @@ void process_inbound_udp(int sock, bt_config_t *config) {
     return;
   }
   //todo: C support native enum, replace here
-  if (header->packType == 0){
+  if (header->packType == WHOHAS){
     process_whohas(sock, buf + header->headerLen, from, fromlen, BUFLEN,
                    config, header);
-  }else if (header->packType == 1){
+  }else if (header->packType == IHAVE){
     process_ihave(sock, buf + header->headerLen, from, fromlen, BUFLEN,
                   config, &config->ihave_msgs, header);
-  }else if (header->packType == 2){
+  }else if (header->packType == GET){
     process_peer_get(sock, buf + header->headerLen, from, fromlen, BUFLEN,
                      config, header);
-  }else if (header->packType == 3){
+  }else if (header->packType == DATA){
     process_data(sock, buf + header->headerLen, from, fromlen, BUFLEN, config,
                  header, recv_size);
-  }else if (header->packType == 4){
+  }else if (header->packType == DENIED){
     process_ack(sock, buf + header->headerLen, from, fromlen, BUFLEN, config,
                 header);
   }else if (header->packType == 5){
@@ -819,83 +820,6 @@ void process_inbound_udp(int sock, bt_config_t *config) {
   free(header);
   return;
 }
-
-
-
-/*
- * char *chunkfile: a filename pointing to a file containing chunks to
- * be retrieved
- * char *has_chunk_file: a filename pointing to a file containing
- * chunks to owned by current peer
- *
- * return char *: filtered chunk hashes in the format "hash hash hash
- * ..."
- * note: better save filtered chunks in a vector in case multiple
- * messages need to be built out of it
- *
- * given a chunkfile and current peer's has_chunk_file, only keep
- * those chunks in chunkfile that are not in has_chunk_file
- *
- * todo: need to break down into smaller function, provide vector diff function
- */
-vector *filter_chunkfile(char *chunkfile, char *has_chunk_file, int *chunks_num, bt_config_t *config){
-  FILE *f1, *f2;
-  vector v1, v2;
-  vector *res = NULL;
-  if ((res = (vector*)malloc(sizeof(vector))) == NULL){
-    fprintf(stderr, "Failed to allocate memory for a new vector \n");
-    return NULL;
-  }
-  memset(res, 0, sizeof(vector));
-  init_vector(res, CHUNK_HASH_SIZE);
-  //todo: change impl
-  init_vector(&v1, CHUNK_HASH_SIZE);
-  init_vector(&v2, CHUNK_HASH_SIZE);
-
-  if ((f1 = fopen(chunkfile, "r")) == NULL){
-    fprintf(stderr, "Error opening chunkfile %s \n", chunkfile);
-    return NULL;
-  }
-  if ((f2 = fopen(has_chunk_file, "r")) == NULL){
-    fprintf(stderr, "Error opening has_chunk_file %s\n", has_chunk_file);
-    return NULL;
-  }
-  read_chunk(f1, &v1);
-  read_chunk(f2, &v2);
-  /* improve performance by replacing the list with a hashmap */
-  for (int i = 0; i < v1.len; i++){
-    int own = 0;
-    char *str_i = vec_get(&v1, i);
-    for (int j = 0; j < v2.len; j++){
-      char *str_j = vec_get(&v2, j);
-      if (!strcmp(str_i, str_j)){
-        own = 1;
-        break;
-      }
-    }
-    data_t d; /* to record the order of chunks in somewhether */
-    strcpy(d.chunk_hash, str_i);
-    d.data = NULL;
-    // this is mixture of logc, a few layers have been crossed
-    if (!own){
-      d.own = 0;
-      vec_add(res, str_i);
-      vec_add(&config->desired_chunks, str_i);
-    }else{
-      d.own = 1;
-    }
-    vec_add(&config->data, &d);
-  }
-  *chunks_num = res->len;
-  vec_free(&v1);
-  vec_free(&v2);
-  /* for (int i = 0; i < res->len; i++){ */
-  /*   fprintf(stdout, "%d %s", i, (char*)vec_get(res, i)); */
-  /*   fprintf(stdout, "\n"); */
-  /* } */
-  return res;
-}
-
 
 
 /*
@@ -956,34 +880,6 @@ peers_t *load_peers(bt_config_t *config){
 }
 
 
-/*
- * peers_t peers: contains a list of peers info
- * char *query: the query info to flood to peers
- */
-void flood_peers_query(peers_t *peers, vector *queries, bt_config_t *config){
-  init_vector(&config->whohas_timers, sizeof(timer));
-  init_vector(&config->get_timers, sizeof(timer));
-  init_vector(&config->request_queue, sizeof(request_t));
-  for (int j = 0; j < queries->len; j++){
-    char *query = (char*)vec_get(queries, j);
-    packet_h header;
-    header.magicNo = 15441;
-    header.versionNo = 1;
-    header.packType = 0;
-    header.headerLen = PACK_HEADER_BASE_LEN;
-    header.packLen = PACK_HEADER_BASE_LEN + strlen(query);
-    /* not used in non-data packets */
-    header.seqNo = 0;
-    header.ackNo = 0;
-    for (int i = 0; i < peers->peer.len; i++){
-      peer_info_t *peer = (peer_info_t*)vec_get(&peers->peer, i);
-      send_packet(peer->ip, peer->port, &header, query, config->mysock, strlen(query));
-      add_timer(&config->whohas_timers, peer->ip, peer->port, NULL, query);
-    }
-  }
-
-  return;
-}
 
 
 /**
@@ -996,8 +892,7 @@ void flood_peers_query(peers_t *peers, vector *queries, bt_config_t *config){
 void process_get(char *chunkfile, char *outputfile, bt_config_t *config) {
   config->job = job_init(chunkfile, outputfile, config);
   char *whohas_query = build_whohas_query(config->job->chunks_to_download);
-  flood_peers_query(config->peer, whohas_query, config->job);
-
+  job_flood_whohas_msg(config->peers, whohas_query, config->job);
   free(whohas_query);
 
   return;

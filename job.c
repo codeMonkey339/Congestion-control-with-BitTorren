@@ -65,9 +65,23 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
 }
 
 
+/**
+ * flood whohas messages to all peers
+ * @param peers
+ * @param query_msg
+ * @param job
+ */
 void job_flood_whohas_msg(vector *peers, char *query_msg, job_t *job){
     packet_h header;
     build_packet_header(&header, 15441, 1, 0, PACK_HEADER_BASE_LEN,
                         PACK_HEADER_BASE_LEN + strlen(query_msg), 0, 0);
-    //todo: need to flood the message to all peers
+    for (int i = 0;i < peers->len; i++){
+        peer_info_t *peer = (peer_info_t*)vec_get(&peers->peer, i);
+        /* strlen can be used here to find the body length */
+        packet_m *packet = packet_message_builder(&header, query, strlen
+                (query));
+        send_packet(peer->ip, peer->port, packet);
+        free(packet);
+    }
+    return;
 }

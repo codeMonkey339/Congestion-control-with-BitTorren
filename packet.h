@@ -2,8 +2,8 @@
 #define __PACKET__
 
 #include <stdint.h>
+#include "constants.h"
 
-#define PACK_HEADER_BASE_LEN 16
 
 /* the struct to represent packet header */
 typedef struct packet_h{
@@ -21,11 +21,15 @@ typedef struct packet_h{
   uint32_t ackNo;
 }packet_h;
 
-typedef struct packet_b{
-  packet_h header;
-  char *body;
-}packet_b;
 
+
+typedef struct packet_message{
+    packet_h header;
+    char body[CHUNK_LEN];
+    uint32_t body_len;
+}packet_m;
+
+packet_m * packet_message_builder(char *header, char* body, uint32_t body_len);
 packet_h * parse_packet(char **buf);
 void build_packet_header(packet_h *header, int magicNo, int versionNo, int packType,
                          int headerLen, int packLen, int seqNo, int ackNo);

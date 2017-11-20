@@ -48,3 +48,24 @@ void build_packet_header(packet_h *header, int magicNo, int versionNo, int packT
     header->ackNo = ackNo;
     return;
 }
+
+
+/**
+ * builder for packet
+ * @param header
+ * @param body
+ * @param body_len
+ * @return
+ */
+packet_m * packet_message_builder(char *header, char* body, uint32_t body_len){
+    chunk_m *msg = (chunk_m*)malloc(sizeof(chunk_m));
+    memset(msg, 0, sizeof(chunk_m));
+    memcpy(&msg->header, header, PACK_HEADER_BASE_LEN);
+
+    /* in case that the body is empty */
+    if (body != NULL){
+        memcpy(&msg->body, body, body_len);
+    }
+    msg->body_len = body_len;
+    return msg;
+}
