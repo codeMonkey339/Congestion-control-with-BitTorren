@@ -19,6 +19,7 @@ typedef struct job_t{
     vector *chunks_to_download;
     vector *chunks_to_copy_from_local;
     char *outputfile;
+    char *has_chunk_file;
 }job_t;
 
 job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config);

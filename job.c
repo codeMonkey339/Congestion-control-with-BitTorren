@@ -1,5 +1,6 @@
 #include "job.h"
 #include "packet.h"
+#include "utility.h"
 
 /**
  * initialize the job struct with necessary information
@@ -15,6 +16,7 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
 
     job->chunks_to_download = (vector*)malloc(sizeof(vector));
     job->chunks_to_copy_from_local = (vector*)malloc(sizeof(vector));
+    job->has_chunk_file = config->has_chunk_file;
     init_vector(&v1, CHUNK_HASH_SIZE);
     init_vector(&v2, CHUNK_HASH_SIZE);
     init_vector(job->chunks_to_download, sizeof(chunk_to_download));

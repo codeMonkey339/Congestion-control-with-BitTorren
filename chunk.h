@@ -12,6 +12,7 @@
 #define _CHUNK_H_
 #include <stdio.h>
 #include <inttypes.h>
+#include "utility.h"
 
 #define BT_CHUNK_SIZE (512 * 1024)
 
@@ -32,6 +33,8 @@ extern "C" {
 
   /* converts an ascii to hex */
   void hex2binary(char *hex, int len, uint8_t*buf);
+
+  read_chunk(char *filename, vector *v);
 #ifdef __cplusplus
 }
 #endif

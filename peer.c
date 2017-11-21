@@ -187,32 +187,6 @@ int request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx, int force)
   return timer_exists;
 }
 
-/*
- * FILE *f: file pointer to file which will be read from
- * vector *v: a vector pointer which will hold read chunk hashes
- */
-void read_chunk(FILE *f, vector *v){
-  char *token, *line = NULL;
-  size_t line_len;
-
-  while(getline(&line, &line_len, f) != -1){
-    token = strtok(line, " ");
-    if (isdigit(token[0])){
-      token = strtok(NULL, " ");
-      if (token[strlen(token) -1] == '\n'){
-        token[strlen(token) -1] = '\0';
-      }
-      vec_add(v, token);
-    }else{
-      /* skip the current line */
-      fprintf(stdout, "Comment line in chunk file\n");
-    }
-    free(line); // memory is dynamically allocated in getline
-    line = NULL;
-    line_len = 0;
-  }
-  return;
-}
 
 /*
   todo:
@@ -771,12 +745,10 @@ void process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLe
  * @param config config file of the current peer
  */
 void process_inbound_udp(int sock, bt_config_t *config) {
-  /* can write #define everywhere since the preprocessor is not aware of the
-   * program */
   #define BUFLEN 1500
   struct sockaddr_in from;
   socklen_t fromlen;
-  char buf[BUFLEN], *buf_backup, *token, *buf_backup_ptr;
+  char buf[BUFLEN], *buf_backup, *buf_backup_ptr;
   int recv_size = 0;
 
   memset(buf, 0, BUFLEN);
@@ -794,7 +766,9 @@ void process_inbound_udp(int sock, bt_config_t *config) {
     fprintf(stderr, "Have received an invalid packet \n");
     return;
   }
-  //todo: C support native enum, replace here
+  handler_input *input = build_handler_input(sock, buf + header->headerLen,
+                                             &from, fromlen, BUFLEN,
+                                             recv_size, header);
   if (header->packType == WHOHAS){
     process_whohas(sock, buf + header->headerLen, from, fromlen, BUFLEN,
                    config, header);
@@ -818,6 +792,7 @@ void process_inbound_udp(int sock, bt_config_t *config) {
   //todo: need to release correctly
   free(buf_backup_ptr);
   free(header);
+  free(input);
   return;
 }
 

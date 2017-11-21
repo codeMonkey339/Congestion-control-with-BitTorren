@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdlib.h> // for malloc
 #include <string.h> // for memset
+#include <stdio.h>
 
 /**
  * fp -- the file pointer you want to chunkify.
@@ -80,6 +81,36 @@ void hex2binary(char *hex, int len, uint8_t*buf) {
 		buf[i/2] = 	_hex2binary(hex[i]) << 4 
 				| _hex2binary(hex[i+1]);
 	}
+}
+
+/**
+ * read chunk hashes in the file into the vector
+ * @param filename a file contains chunk hashes
+ * @param v vector stores the hashes in the file
+ * @return
+ */
+read_chunk(char *filename, vector *v){
+	FILE *f = Fopen(filename, "r");
+	char *token, *line = NULL;
+	size_t line_len;
+
+	while(getline(&line, &line_len, f) != -1){
+		token = strtok(line, " ");
+		if (isdigit(token[0])){
+			token = strtok(NULL, " ");
+			if (token[strlen(token) -1] == '\n'){
+				token[strlen(token) -1] = '\0';
+			}
+			vec_add(v, token);
+		}else{
+			/* skip the current line */
+			fprintf(stdout, "Comment line in chunk file\n");
+		}
+		free(line); // memory is dynamically allocated in getline
+		line = NULL;
+		line_len = 0;
+	}
+	return;
 }
 
 #ifdef _TEST_CHUNK_C_

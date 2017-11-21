@@ -214,3 +214,18 @@ char *get_chunk_hash(char *chunk, size_t size){
   free(hash);
   return chunk_hash;
 }
+
+/**
+ * wrapper for fopen
+ * @param filename
+ * @param mode
+ * @return
+ */
+FILE *Fopen(char *filename, char *mode){
+    FILE *f;
+    if ((f = fopen(filename, "r")) == NULL){
+        fprintf(stderr, "Failed to open file %s \n", filename);
+        exit(-1);
+    }
+    return f;
+}

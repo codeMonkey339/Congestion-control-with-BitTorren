@@ -3,6 +3,7 @@
 
 #include <time.h>
 #include "packet.h"
+#include <stdio.h>
 
 
 
@@ -90,4 +91,5 @@ void test_vec();
 char *get_chunk_hash(char *chunk, size_t size);
 vector *vec_diff(vector *v1, vector *v2);
 vector *vec_common(vector *v1, vector *v2);
+FILE *Fopen(char *filename, char *mode);
 #endif
