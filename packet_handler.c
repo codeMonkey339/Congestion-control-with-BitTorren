@@ -1,5 +1,11 @@
 #include "packet_handler.h"
 #include "packet.h"
+#include <stdio.h>
+#include "utility.h"
+#include <string.h>
+#include <stdlib.h>
+#include "chunk.h"
+#include "reliable_udp.h"
 
 /**
  * given a list of chunks to download, build the whohas query message
@@ -23,9 +29,8 @@ char *build_whohas_query(vector *chunks_to_download){
     return query;
 }
 
-
 /**
- * builder for the handler_input struct
+ * builder for handler_input
  * @param incoming_socket
  * @param body_buf
  * @param from_ip
@@ -33,13 +38,12 @@ char *build_whohas_query(vector *chunks_to_download){
  * @param buf_len
  * @param recv_size
  * @param header
- * @param job
  * @return
  */
-handler_input * build_handler_input(uint16_t incoming_socket, char *body_buf,
-                                    struct socket_in *from_ip, socket_t
-                                    from_len, uint16_t buf_len, uint32_t
-                                    recv_size, packet_h *header){
+handler_input *build_handler_input(uint16_t incoming_socket, char *body_buf,
+                                   struct socket_in *from_ip, socklen_t
+                                   from_len, uint16_t buf_len, uint32_t
+                                   recv_size, packet_h *header){
     handler_input *res = (handler_input*)malloc(sizeof(handler_input));
     res->incoming_socket = incoming_socket;
     res->body_buf = body_buf;
@@ -48,7 +52,7 @@ handler_input * build_handler_input(uint16_t incoming_socket, char *body_buf,
     res->buf_len = buf_len;
     res->recv_size = recv_size;
     res->header = header;
-    return;
+    return res;
 }
 
 /**
@@ -76,15 +80,23 @@ void parse_whohas_packet(char *buf, vector *v){
  * @return a string contains the reply IHAVE message
  */
 char *build_ihave_reply(vector *common_hashes){
-
+    char *res = (char*)malloc(strlen("WHOHAS ") + common_hashes->len *
+                                                 CHUNK_HASH_SIZE);
+    strcpy(res, "WHOHAS ");
+    vec_copy2_str(res + strlen(res), common_hashes);
+    return res;
 }
 
+/**
+ * handles incoming WHOHAS message
+ * @param input pointer to handler_input which contains necessary info
+ * @param job pointer to current job
+ */
 void process_whohas(handler_input *input, job_t *job){
     FILE *f;
     packet_h reply_header;
     vector v, v2, *common_hashes;
-    char *reply, ip[IP_STR_LEN];
-    int reply_len = 0, hash_len = 0, buf_size = BUFLEN, has_num = 0, port;
+    char *reply;
 
     init_vector(&v, CHUNK_HASH_SIZE);
     init_vector(&v2, CHUNK_HASH_SIZE);
@@ -94,7 +106,13 @@ void process_whohas(handler_input *input, job_t *job){
     reply = build_ihave_reply(common_hashes);
     build_packet_header(&reply_header, 15441, 1, 1, PACK_HEADER_BASE_LEN,
                         PACK_HEADER_BASE_LEN + strlen(reply), 0, 0);
-    //todo: need to find a proper way to place the ip/port handling
+    ip_port_t *ip_port = parse_host(input->from_ip);
+    packet_m *packet = packet_message_builder(&reply_header, reply, strlen
+            (reply));
+    send_packet(ip_port->ip, ip_port->port, packet, input->incoming_socket);
 
-
+    free(reply);
+    free(packet);
+    free(ip_port);
+    return;
 }

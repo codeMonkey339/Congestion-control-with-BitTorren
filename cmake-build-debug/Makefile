@@ -258,6 +258,33 @@ input_buffer.c.s:
 	$(MAKE) -f CMakeFiles/Congestion_control_with_BitTorren.dir/build.make CMakeFiles/Congestion_control_with_BitTorren.dir/input_buffer.c.s
 .PHONY : input_buffer.c.s
 
+job.o: job.c.o
+
+.PHONY : job.o
+
+# target to build an object file
+job.c.o:
+	$(MAKE) -f CMakeFiles/Congestion_control_with_BitTorren.dir/build.make CMakeFiles/Congestion_control_with_BitTorren.dir/job.c.o
+.PHONY : job.c.o
+
+job.i: job.c.i
+
+.PHONY : job.i
+
+# target to preprocess a source file
+job.c.i:
+	$(MAKE) -f CMakeFiles/Congestion_control_with_BitTorren.dir/build.make CMakeFiles/Congestion_control_with_BitTorren.dir/job.c.i
+.PHONY : job.c.i
+
+job.s: job.c.s
+
+.PHONY : job.s
+
+# target to generate assembly for a file
+job.c.s:
+	$(MAKE) -f CMakeFiles/Congestion_control_with_BitTorren.dir/build.make CMakeFiles/Congestion_control_with_BitTorren.dir/job.c.s
+.PHONY : job.c.s
+
 make_chunks.o: make_chunks.c.o
 
 .PHONY : make_chunks.o
@@ -284,6 +311,33 @@ make_chunks.s: make_chunks.c.s
 make_chunks.c.s:
 	$(MAKE) -f CMakeFiles/Congestion_control_with_BitTorren.dir/build.make CMakeFiles/Congestion_control_with_BitTorren.dir/make_chunks.c.s
 .PHONY : make_chunks.c.s
+
+packet_handler.o: packet_handler.c.o
+
+.PHONY : packet_handler.o
+
+# target to build an object file
+packet_handler.c.o:
+	$(MAKE) -f CMakeFiles/Congestion_control_with_BitTorren.dir/build.make CMakeFiles/Congestion_control_with_BitTorren.dir/packet_handler.c.o
+.PHONY : packet_handler.c.o
+
+packet_handler.i: packet_handler.c.i
+
+.PHONY : packet_handler.i
+
+# target to preprocess a source file
+packet_handler.c.i:
+	$(MAKE) -f CMakeFiles/Congestion_control_with_BitTorren.dir/build.make CMakeFiles/Congestion_control_with_BitTorren.dir/packet_handler.c.i
+.PHONY : packet_handler.c.i
+
+packet_handler.s: packet_handler.c.s
+
+.PHONY : packet_handler.s
+
+# target to generate assembly for a file
+packet_handler.c.s:
+	$(MAKE) -f CMakeFiles/Congestion_control_with_BitTorren.dir/build.make CMakeFiles/Congestion_control_with_BitTorren.dir/packet_handler.c.s
+.PHONY : packet_handler.c.s
 
 peer.o: peer.c.o
 
@@ -498,9 +552,15 @@ help:
 	@echo "... input_buffer.o"
 	@echo "... input_buffer.i"
 	@echo "... input_buffer.s"
+	@echo "... job.o"
+	@echo "... job.i"
+	@echo "... job.s"
 	@echo "... make_chunks.o"
 	@echo "... make_chunks.i"
 	@echo "... make_chunks.s"
+	@echo "... packet_handler.o"
+	@echo "... packet_handler.i"
+	@echo "... packet_handler.s"
 	@echo "... peer.o"
 	@echo "... peer.i"
 	@echo "... peer.s"

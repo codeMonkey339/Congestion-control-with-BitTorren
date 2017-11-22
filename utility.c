@@ -150,6 +150,21 @@ vector *vec_common(vector *v1, vector *v2){
   return res;
 }
 
+/**
+ * copy elements of a vector a string buffer
+ * @param v pointer to vector
+ * @param buf
+ */
+void vec_copy2_str(vector *v, char *buf){
+    for (size_t i = 0; i < v->len; i++){
+        strcat(buf, vec_get(v, i));
+        if (i != (v->len -1)){
+            strcat(buf, " ");
+        }
+    }
+    return;
+}
+
 
 int read_from_sock(int sock, char *buf, int BUFLEN){
   int len = 0;
@@ -228,4 +243,13 @@ FILE *Fopen(char *filename, char *mode){
         exit(-1);
     }
     return f;
+}
+
+
+ip_port_t* parse_host(struct sockaddr_in *from){
+    ip_port_t *h = (ip_port_t*)malloc(sizeof(ip_port_t));
+    memset(h, 0, sizeof(ip_port_t));
+    inet_ntop(AF_INET, &(from.sin_addr), h->ip, IP_STR_LEN);
+    h->port = htons(from.sin_port);
+    return h;
 }

@@ -26,6 +26,10 @@ set(SOURCE_FILES
         spiffy.h
         test_input_buffer.c
         utility.c
-        utility.h)
+        utility.h
+        packet_handler.c
+        packet_handler.h
+        job.c
+        job.h)
 
 add_executable(Congestion_control_with_BitTorren ${SOURCE_FILES})

@@ -12,6 +12,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/Congestion_control_with_BitTorren.dir/spiffy.c.o"
   "CMakeFiles/Congestion_control_with_BitTorren.dir/test_input_buffer.c.o"
   "CMakeFiles/Congestion_control_with_BitTorren.dir/utility.c.o"
+  "CMakeFiles/Congestion_control_with_BitTorren.dir/packet_handler.c.o"
+  "CMakeFiles/Congestion_control_with_BitTorren.dir/job.c.o"
   "Congestion_control_with_BitTorren.pdb"
   "Congestion_control_with_BitTorren"
 )

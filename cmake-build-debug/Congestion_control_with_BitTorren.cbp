@@ -114,10 +114,22 @@
 		<Unit filename="/home/justin/Documents/class/15-441/projs/Proj2/Congestion-control-with-BitTorren/input_buffer.h">
 			<Option target="Congestion_control_with_BitTorren"/>
 		</Unit>
+		<Unit filename="/home/justin/Documents/class/15-441/projs/Proj2/Congestion-control-with-BitTorren/job.c">
+			<Option target="Congestion_control_with_BitTorren"/>
+		</Unit>
+		<Unit filename="/home/justin/Documents/class/15-441/projs/Proj2/Congestion-control-with-BitTorren/job.h">
+			<Option target="Congestion_control_with_BitTorren"/>
+		</Unit>
 		<Unit filename="/home/justin/Documents/class/15-441/projs/Proj2/Congestion-control-with-BitTorren/make_chunks.c">
 			<Option target="Congestion_control_with_BitTorren"/>
 		</Unit>
 		<Unit filename="/home/justin/Documents/class/15-441/projs/Proj2/Congestion-control-with-BitTorren/packet.h">
+			<Option target="Congestion_control_with_BitTorren"/>
+		</Unit>
+		<Unit filename="/home/justin/Documents/class/15-441/projs/Proj2/Congestion-control-with-BitTorren/packet_handler.c">
+			<Option target="Congestion_control_with_BitTorren"/>
+		</Unit>
+		<Unit filename="/home/justin/Documents/class/15-441/projs/Proj2/Congestion-control-with-BitTorren/packet_handler.h">
 			<Option target="Congestion_control_with_BitTorren"/>
 		</Unit>
 		<Unit filename="/home/justin/Documents/class/15-441/projs/Proj2/Congestion-control-with-BitTorren/peer.c">

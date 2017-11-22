@@ -4,6 +4,10 @@
 #include <time.h>
 #include "packet.h"
 #include <stdio.h>
+#include <sys/types.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 
 
@@ -77,6 +81,12 @@ typedef struct chunk_buf{
   char *data;
 }chunk_buf;
 
+typedef struct ip_port_t{
+    char ip[IP_STR_LEN];
+    uint16_t port;
+}ip_port_t;
+
+
 void init_vector(vector *vec, int ele_size);
 void vec_add(vector *vec, void *ele);
 void *vec_get(vector *vec, int idx);
@@ -85,6 +95,7 @@ void vec_free(vector *vec);
 /* chunk_dis is not general enough, how about void* ? */
 void vec_sort(vector *vec, int (*cmp)(chunk_dis *, chunk_dis*));
 int vec_delete(vector *vec, void *ele);
+void vec_copy2_str(vector *v, char *buf);
 int read_from_sock(int sock, char *buf, int BUFLEN);
 void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf);
 void test_vec();
@@ -92,4 +103,6 @@ char *get_chunk_hash(char *chunk, size_t size);
 vector *vec_diff(vector *v1, vector *v2);
 vector *vec_common(vector *v1, vector *v2);
 FILE *Fopen(char *filename, char *mode);
+ip_port_t* parse_host(struct sockaddr_in *from);
+
 #endif

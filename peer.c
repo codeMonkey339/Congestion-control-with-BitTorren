@@ -235,65 +235,6 @@ char *build_ihave_reply(char *reply, int num){
   return res;
 }
 
-/*
- * handle whohas message from peers
- * check whether the chunks exist in itw own has_chunk_file, if so
- * then replies the IHAVE message, otherwise there is no reply
- *
- * Assume the maximum packet size for UDP is 1500 bytes. The peer must
- * split the list into multiple WHOHAS queries if the list is too
- * large for a single packet. It is assumed that all IHAVE messages
- * will have sizes less than 1500 byte
- *
- * the REPLY message is in the format: "IHAVE 2 000...015 0000...00441"
- */
-void process_whohas(int sock, char *buf, struct sockaddr_in from, socklen_t fromlen, int BUFLEN, bt_config_t *config, packet_h *header){
-  //todo: need to send message correctly
-  FILE *f;
-  char *token, *reply = (char*)malloc(BUFLEN), ip[IP_STR_LEN];
-  vector v;
-  int chunks_num, reply_len = 0, hash_len = 0, buf_size = BUFLEN, has_num = 0, port;
-  if ((f = fopen(config->has_chunk_file, "r")) == NULL){
-    fprintf(stderr, "Error opening the has_chunk_file %s\n", config->has_chunk_file);
-    exit(1);
-  }
-  init_vector(&v, CHUNK_HASH_SIZE);
-  read_chunk(f, &v);
-  token = strtok(buf, " ");
-  token = strtok(NULL, " ");
-  chunks_num = atoi(token);
-  memset(reply, 0, BUFLEN);
-
-  /* don't have to use the packet length here, chunks_num is enough */
-  while(chunks_num-- > 0){
-    token = strtok(NULL, " "); /* get a new chunk hash, token is null terminated? */
-    for (int i = 0; i < v.len; i++){
-      char *msg = vec_get(&v, i);
-      if (strstr(msg, token) != NULL){
-        /* strtok will replace ' ' with '\0' */
-        hash_len = strlen(token);
-        if ((reply_len + hash_len) >= buf_size){
-          reply = (char*)realloc(reply, 2 * buf_size);
-        }
-        strcat(reply, vec_get(&v, i));
-        strcat(reply, " ");
-        has_num++;
-        break;
-      }
-    }
-  }
-  char *reply_msg = build_ihave_reply(reply, has_num);
-  memset(ip, 0, IP_STR_LEN);
-  inet_ntop(AF_INET, &(from.sin_addr), ip, IP_STR_LEN);
-  port = ntohs(from.sin_port);
-  packet_h reply_header;
-  build_header(&reply_header, 15441, 1, 1, PACK_HEADER_BASE_LEN, PACK_HEADER_BASE_LEN + strlen(reply_msg), 0, 0);
-  send_packet(ip, port, &reply_header, reply_msg, config->mysock, strlen(reply_msg));
-  free(reply);
-  free(reply_msg);
-  return;
-}
-
 
 /*
   this function is a comparator to sort chunk_dis struct
