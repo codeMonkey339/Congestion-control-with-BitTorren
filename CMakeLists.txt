@@ -30,6 +30,9 @@ set(SOURCE_FILES
         packet_handler.c
         packet_handler.h
         job.c
-        job.h)
+        job.h
+        peer_utils.h
+        peer_utils.c
+        )
 
 add_executable(Congestion_control_with_BitTorren ${SOURCE_FILES})

@@ -27,6 +27,13 @@ typedef struct handler_input{
     packet_h *header;
 }handler_input;
 
+typedef struct ihave{
+    char *msg; /* the ihave message from the peer */
+    int idx; /* the index of the peer */
+    int chunk_num; /* the # of chunks stored on peer peer */
+    char **chunks; /* a double pointer to chunks stored on peer peer */
+}ihave_t;
+
 char *build_whohas_query(vector *chunks_to_download);
 handler_input *build_handler_input(uint16_t incoming_socket, char *body_buf,
                                     struct socket_in *from_ip, socklen_t
@@ -36,6 +43,7 @@ handler_input *build_handler_input(uint16_t incoming_socket, char *body_buf,
 void parse_whohas_packet(char *buf, vector *v);
 void process_whohas(handler_input *input, job_t *job);
 char *build_ihave_reply(vector *common_hashes);
+void process_ihave(handler_input *input, job_t *job);
 
 #endif
 

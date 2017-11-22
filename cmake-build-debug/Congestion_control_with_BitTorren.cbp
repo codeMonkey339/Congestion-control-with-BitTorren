@@ -135,6 +135,12 @@
 		<Unit filename="/home/justin/Documents/class/15-441/projs/Proj2/Congestion-control-with-BitTorren/peer.c">
 			<Option target="Congestion_control_with_BitTorren"/>
 		</Unit>
+		<Unit filename="/home/justin/Documents/class/15-441/projs/Proj2/Congestion-control-with-BitTorren/peer_utils.c">
+			<Option target="Congestion_control_with_BitTorren"/>
+		</Unit>
+		<Unit filename="/home/justin/Documents/class/15-441/projs/Proj2/Congestion-control-with-BitTorren/peer_utils.h">
+			<Option target="Congestion_control_with_BitTorren"/>
+		</Unit>
 		<Unit filename="/home/justin/Documents/class/15-441/projs/Proj2/Congestion-control-with-BitTorren/reliable_udp.c">
 			<Option target="Congestion_control_with_BitTorren"/>
 		</Unit>

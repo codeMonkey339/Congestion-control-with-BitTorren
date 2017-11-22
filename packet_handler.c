@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include "chunk.h"
 #include "reliable_udp.h"
+#include "peer_utils.h"
 
 /**
  * given a list of chunks to download, build the whohas query message
@@ -93,7 +94,6 @@ char *build_ihave_reply(vector *common_hashes){
  * @param job pointer to current job
  */
 void process_whohas(handler_input *input, job_t *job){
-    FILE *f;
     packet_h reply_header;
     vector v, v2, *common_hashes;
     char *reply;
@@ -106,7 +106,7 @@ void process_whohas(handler_input *input, job_t *job){
     reply = build_ihave_reply(common_hashes);
     build_packet_header(&reply_header, 15441, 1, 1, PACK_HEADER_BASE_LEN,
                         PACK_HEADER_BASE_LEN + strlen(reply), 0, 0);
-    ip_port_t *ip_port = parse_host(input->from_ip);
+    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
     packet_m *packet = packet_message_builder(&reply_header, reply, strlen
             (reply));
     send_packet(ip_port->ip, ip_port->port, packet, input->incoming_socket);
@@ -115,4 +115,26 @@ void process_whohas(handler_input *input, job_t *job){
     free(packet);
     free(ip_port);
     return;
+}
+
+ihave_t *parse_ihave_packet(char *buf, size_t buf_len){
+    char *buf_backup = Malloc(buf_len), *token;
+    ihave_t *ihave_res = Malloc(sizeof(ihave_t));
+
+    size_t ihave_msg_nums;
+    memcpy(buf_backup, buf, buf_len);
+    token = strtok(buf_backup, " ");
+    token = strtok(NULL, " ");
+    ihave_msg_nums = atoi(token);
+    ihave_res->chunk_num = ihave_msg_nums;
+    //todo: 1. buf_backup pointer to free the memory 2. ihave_res->msg???
+
+}
+
+void process_ihave(handler_input *input, job_t *job){
+    size_t peer_idx;
+    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+    //todo: where to put the peer vector?
+    peer_idx = get_peer_id(ip_port);
+
 }

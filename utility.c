@@ -246,10 +246,23 @@ FILE *Fopen(char *filename, char *mode){
 }
 
 
-ip_port_t* parse_host(struct sockaddr_in *from){
+ip_port_t* parse_peer_ip_port(struct sockaddr_in *from){
     ip_port_t *h = (ip_port_t*)malloc(sizeof(ip_port_t));
     memset(h, 0, sizeof(ip_port_t));
-    inet_ntop(AF_INET, &(from.sin_addr), h->ip, IP_STR_LEN);
-    h->port = htons(from.sin_port);
+    inet_ntop(AF_INET, &(from->sin_addr), h->ip, IP_STR_LEN);
+    h->port = htons(from->sin_port);
     return h;
+}
+
+/**
+ * malloc wrapper
+ * @param size
+ * @return
+ */
+char *Malloc(int size){
+    char *res;
+    if ((res = malloc(size)) == NULL){
+        fprintf(stderr, "Failed to allocate memory of size %d\n", size);
+    }
+    return res;
 }

@@ -1,7 +1,10 @@
 #include "job.h"
 #include "packet.h"
 #include "utility.h"
-
+#include <stdio.h>
+#include "chunk.h"
+#include <stdlib.h>
+#include <string.h>
 /**
  * initialize the job struct with necessary information
  * @param chunkfile
@@ -17,6 +20,7 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     job->chunks_to_download = (vector*)malloc(sizeof(vector));
     job->chunks_to_copy_from_local = (vector*)malloc(sizeof(vector));
     job->has_chunk_file = config->has_chunk_file;
+    job->mysock = config->mysock;
     init_vector(&v1, CHUNK_HASH_SIZE);
     init_vector(&v2, CHUNK_HASH_SIZE);
     init_vector(job->chunks_to_download, sizeof(chunk_to_download));
@@ -63,7 +67,7 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     free(diff_chunk_hash);
     vec_free(common_chunk_hash);
     free(common_chunk_hash);
-    return;
+    return job;
 }
 
 
@@ -78,11 +82,11 @@ void job_flood_whohas_msg(vector *peers, char *query_msg, job_t *job){
     build_packet_header(&header, 15441, 1, 0, PACK_HEADER_BASE_LEN,
                         PACK_HEADER_BASE_LEN + strlen(query_msg), 0, 0);
     for (int i = 0;i < peers->len; i++){
-        peer_info_t *peer = (peer_info_t*)vec_get(&peers->peer, i);
+        peer_info_t *peer = (peer_info_t*)vec_get(peers, i);
         /* strlen can be used here to find the body length */
-        packet_m *packet = packet_message_builder(&header, query, strlen
-                (query));
-        send_packet(peer->ip, peer->port, packet);
+        packet_m *packet = packet_message_builder(&header, query_msg, strlen
+                (query_msg));
+        send_packet(peer->ip, peer->port, packet, job->mysock);
         free(packet);
     }
     return;

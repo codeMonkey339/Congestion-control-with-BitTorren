@@ -366,6 +366,33 @@ peer.c.s:
 	$(MAKE) -f CMakeFiles/Congestion_control_with_BitTorren.dir/build.make CMakeFiles/Congestion_control_with_BitTorren.dir/peer.c.s
 .PHONY : peer.c.s
 
+peer_utils.o: peer_utils.c.o
+
+.PHONY : peer_utils.o
+
+# target to build an object file
+peer_utils.c.o:
+	$(MAKE) -f CMakeFiles/Congestion_control_with_BitTorren.dir/build.make CMakeFiles/Congestion_control_with_BitTorren.dir/peer_utils.c.o
+.PHONY : peer_utils.c.o
+
+peer_utils.i: peer_utils.c.i
+
+.PHONY : peer_utils.i
+
+# target to preprocess a source file
+peer_utils.c.i:
+	$(MAKE) -f CMakeFiles/Congestion_control_with_BitTorren.dir/build.make CMakeFiles/Congestion_control_with_BitTorren.dir/peer_utils.c.i
+.PHONY : peer_utils.c.i
+
+peer_utils.s: peer_utils.c.s
+
+.PHONY : peer_utils.s
+
+# target to generate assembly for a file
+peer_utils.c.s:
+	$(MAKE) -f CMakeFiles/Congestion_control_with_BitTorren.dir/build.make CMakeFiles/Congestion_control_with_BitTorren.dir/peer_utils.c.s
+.PHONY : peer_utils.c.s
+
 reliable_udp.o: reliable_udp.c.o
 
 .PHONY : reliable_udp.o
@@ -564,6 +591,9 @@ help:
 	@echo "... peer.o"
 	@echo "... peer.i"
 	@echo "... peer.s"
+	@echo "... peer_utils.o"
+	@echo "... peer_utils.i"
+	@echo "... peer_utils.s"
 	@echo "... reliable_udp.o"
 	@echo "... reliable_udp.i"
 	@echo "... reliable_udp.s"

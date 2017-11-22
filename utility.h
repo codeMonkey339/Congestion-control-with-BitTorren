@@ -56,12 +56,7 @@ typedef struct timer{
   char *msg;
 }timer;
 
-typedef struct ihave{
-  char *msg; /* the ihave message from the peer */
-  int idx; /* the index of the peer */
-  int chunk_num; /* the # of chunks stored on peer peer */
-  char **chunks; /* a double pointer to chunks stored on peer peer */
-}ihave_t;
+
 
 typedef struct chunk_dis{
   /* the chunk hash */
@@ -103,6 +98,8 @@ char *get_chunk_hash(char *chunk, size_t size);
 vector *vec_diff(vector *v1, vector *v2);
 vector *vec_common(vector *v1, vector *v2);
 FILE *Fopen(char *filename, char *mode);
-ip_port_t* parse_host(struct sockaddr_in *from);
+ip_port_t* parse_peer_ip_port(struct sockaddr_in *from);
+
+char *Malloc(int size);
 
 #endif

@@ -696,10 +696,7 @@ void process_inbound_udp(int sock, bt_config_t *config) {
   fromlen = sizeof(from);
   recv_size = spiffy_recvfrom(sock, buf, BUFLEN, 0, (struct sockaddr *)
           &from, &fromlen);
-  if ((buf_backup = (char*)malloc(BUFLEN)) == NULL){
-    fprintf(stderr, "malloc failed in process_inbound_upd\n");
-    return;
-  }
+  buf_backup = (char*)Malloc(BUFLEN);
   memcpy(buf_backup, buf, BUFLEN);
   buf_backup_ptr = buf_backup;
   packet_h* header = parse_packet(&buf_backup);
@@ -711,8 +708,7 @@ void process_inbound_udp(int sock, bt_config_t *config) {
                                              &from, fromlen, BUFLEN,
                                              recv_size, header);
   if (header->packType == WHOHAS){
-    process_whohas(sock, buf + header->headerLen, from, fromlen, BUFLEN,
-                   config, header);
+      process_whohas(input, config->job);
   }else if (header->packType == IHAVE){
     process_ihave(sock, buf + header->headerLen, from, fromlen, BUFLEN,
                   config, &config->ihave_msgs, header);
@@ -811,6 +807,7 @@ void process_get(char *chunkfile, char *outputfile, bt_config_t *config) {
   job_flood_whohas_msg(config->peers, whohas_query, config->job);
   free(whohas_query);
 
+  //todo: need to free the memory for job
   return;
 }
 

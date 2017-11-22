@@ -1,6 +1,8 @@
 #ifndef __JOB__
 #define __JOB__
 #include "constants.h"
+#include "utility.h"
+#include "bt_parse.h"
 /*
  * job module mainly handles things related to executing the download job
  * like handles timeout, peer crash
@@ -20,6 +22,7 @@ typedef struct job_t{
     vector *chunks_to_copy_from_local;
     char *outputfile;
     char *has_chunk_file;
+    int mysock;
 }job_t;
 
 job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config);
