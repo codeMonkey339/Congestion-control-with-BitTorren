@@ -117,24 +117,51 @@ void process_whohas(handler_input *input, job_t *job){
     return;
 }
 
+/**
+ * parse the IHAVE message into msg, chunk-hashes, chunk-num sections, and
+ * stored the chunks in a vector
+ * @param buf
+ * @param buf_len
+ * @return
+ */
 ihave_t *parse_ihave_packet(char *buf, size_t buf_len){
     char *buf_backup = Malloc(buf_len), *token;
     ihave_t *ihave_res = Malloc(sizeof(ihave_t));
-
     size_t ihave_msg_nums;
+
     memcpy(buf_backup, buf, buf_len);
     token = strtok(buf_backup, " ");
     token = strtok(NULL, " ");
     ihave_msg_nums = atoi(token);
     ihave_res->chunk_num = ihave_msg_nums;
-    //todo: 1. buf_backup pointer to free the memory 2. ihave_res->msg???
+    ihave_res->msg = Malloc(buf_len);
+    memcpy(ihave_res->msg, buf, buf_len);
+    ihave_res->chunks = (char**)Malloc(sizeof(char*) * ihave_msg_nums);
 
+    for (size_t i = 0;i < ihave_msg_nums; i++){
+        token = strtok(NULL, " ");
+        ihave_res->chunks[i] = Malloc(strlen(token) + 1);
+        strcpy(ihave_res->chunks[i], token);
+    }
+
+    /* free has no knowledge of \0 terminated strings */
+    free(buf_backup);
+    return ihave_res;
+}
+
+//todo:
+int check_all_ihave_reply_received(ihave_t *ihave_parsed_msg, handler_input
+        *input, job_t *job){
+
+    return -1;
 }
 
 void process_ihave(handler_input *input, job_t *job){
-    size_t peer_idx;
-    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
-    //todo: where to put the peer vector?
-    peer_idx = get_peer_id(ip_port);
+    ihave_t *ihave_parsed_msg;
+
+    ihave_parsed_msg = parse_ihave_packet(input->body_buf, input->buf_len);
+    if (check_all_ihave_reply_received(ihave_parsed_msg, input, job)){
+        //todo: send get queries
+    }
 
 }
