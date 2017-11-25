@@ -23,6 +23,12 @@ typedef struct packet_h{
 
 
 
+typedef struct packet_b{
+    void *body;
+    size_t body_len;
+}packet_b;
+
+
 typedef struct packet_message{
     packet_h header;
     char body[CHUNK_LEN];

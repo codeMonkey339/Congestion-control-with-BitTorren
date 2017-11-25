@@ -36,3 +36,16 @@ peer_info_t *get_peer_info_from_id(vector *peers, int idx){
     }
     return p;
 }
+
+
+/**
+ * convert input peer_info_t to to ip_port_t
+ * @param peer_info_t
+ * @return
+ */
+ip_port_t *convert_peer_info_2_ip_port(peer_info_t *peer_info){
+    ip_port_t *ip_port = (ip_port_t*)Malloc(sizeof(ip_port_t));
+    ip_port->ip = peer_info->ip;
+    ip_port->port = peer_info->port;
+    return ip_port;
+}

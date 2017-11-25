@@ -7,6 +7,7 @@
 #include "chunk.h"
 #include "reliable_udp.h"
 #include "peer_utils.h"
+#include <ctype.h>
 
 /**
  * given a list of chunks to download, build the whohas query message
@@ -195,14 +196,65 @@ vector *collect_peer_own_chunk_relation(vector *chunks_to_download, vector
  * @return
  */
 vector *shuffle_peer_ids(vector *chunk_peer_relations){
-    //todo: for each vector of ids, randomly shuffle it
+    time_t t;
+    srand((unsigned)time(&t));
+    for (size_t i = 0; i < chunk_peer_relations->len; i++){
+        chunk_dis *peer_ids = vec_get(chunk_peer_relations, i);
+        size_t *ids = (size_t*)Malloc(sizeof(size_t) * peer_ids->len);
+        size_t shift = rand() % peer_ids->len;
+
+        for (size_t j = 0; j < peer_ids->len; j++){
+            ids[j] = peer_ids->idx[j];
+        }
+
+        for (size_t j = 0; j < peer_ids->len; j++){
+            size_t shifted_pos = (j + shift) % peer_ids->len;
+            peer_ids->idx[j] = shifted_pos;
+        }
+    }
 
     return chunk_peer_relations;
 }
 
 
-int send_get_request(job_t *job, char *chunk_hash, size_t peer_id, int force){
-    //todo: send the GET request to a specific peer
+
+/**
+ * build the body for GET request
+ * @param chunk_hash
+ * @return
+ */
+packet_b *build_get_request_body(char *chunk_hash){
+    packet_b *packet_body = Malloc(sizeof(packet_b));
+    size_t body_len = strlen("GET") +CHUNK_HASH_SIZE + 2;
+    char *body = (char*)Malloc(body_len);
+
+    memset(request_body, 0, body_len);
+    strcat(body, "GET ");
+    strcat(body, chunk_hash);
+    packet_body->body = body;
+    packet_body->len = strlen(body) + 1;
+
+    return packet_body;
+}
+
+/**
+ * send the GET packet to peer with id "peer_id"
+ * @param job
+ * @param chunk_hash
+ * @param peer_id
+ * @return
+ */
+int send_get_request(vector *peers, char *chunk_hash, size_t peer_id){
+    packet_h packet_header;
+    /* inconsistent behavior, better not use output arguments */
+    packet_b *packet_body = build_get_request_body(chunk_hash);
+    build_packet_header(&reply_header, 15441, 1, GET, PACK_HEADER_BASE_LEN,
+                        PACK_HEADER_BASE_LEN + packet_body->len, 0, 0);
+    peer_info_t *peer_info = get_peer_info_from_id(peers, peer_id);
+    ip_port_t *ip_port = convert_peer_info_2_ip_port(peer_info);
+    packet_m *packet = packet_message_builder(&packet_header,
+                                              packet_body->body,
+                                              packet_body->len);
 }
 
 
@@ -219,16 +271,16 @@ void send_get_requests(vector *chunk_peer_relations, job_t *job){
         udp_recv_session *recv_session = (udp_recv_session*)Malloc(sizeof
                                                                   (udp_recv_session));
         build_udp_recv_session(recv_session, peer_id, chunk_hash,job->peers);
-        if (!send_get_request(job, chunk_hash, peer_id, 0)){
-            vec_add(job->recv_sessions, recv_session);
-            //todo: send get request, pay attention to the force flag?
-        }
+
+        /* assumes that there is packet loss here */
+        send_get_request(job->peers, chunk_hash, peer_id);
+        vec_add(job->recv_sessions, recv_session);
     }
     return;
 }
 
 
-/**
+/** for each chunk, get the id of peers owning it
  * @param input
  * @param job
  */
@@ -248,8 +300,7 @@ vector *get_peer_ids_for_chunks(handler_input *input, job_t *job){
  * @param job
  * @return
  */
-int check_all_ihave_msg_received(handler_input
-        *input, job_t *job){
+int check_all_ihave_msg_received(handler_input, *input, job_t *job){
     if (job->ihave_msgs->len == job->peers->len){
         return 1;
     }
@@ -270,7 +321,11 @@ void process_ihave(handler_input *input, job_t *job){
     if (check_all_ihave_msg_received(input, job)){
         sorted_peer_ids = get_peer_ids_for_chunks(input, job);
         send_get_requests(sorted_peer_ids, job);
+
+
+        vec_free(sorted_peer_ids);
         free(sorted_peer_ids);
+        free(ihave_parsed_msg);
     }
 
     return;

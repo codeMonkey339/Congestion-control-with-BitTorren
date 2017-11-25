@@ -219,22 +219,6 @@ void release_all_dynamic_memory(bt_config_t *config){
 }
 
 
-/*
- * the REPLY message is in the format: "IHAVE 2 000...015
- * 0000...00441"
- *
- * todo: the reply_builder could be made more general
- */
-char *build_ihave_reply(char *reply, int num){
-  int buf_len = strlen(reply) + sizeof(num) + strlen("ihave") + 3;
-  char *res = (char*)malloc(buf_len);
-  memset(res, 0, buf_len);
-  strcat(res, "IHAVE ");
-  sprintf(res + strlen(res), "%d ", num);
-  strcat(res, reply);
-  return res;
-}
-
 
 /*
  * Have collected replies from all peers. Need to send GET messages to
