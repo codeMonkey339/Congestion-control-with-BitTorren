@@ -124,10 +124,14 @@ void process_whohas(handler_input *input, job_t *job){
  * @param buf_len
  * @return
  */
-ihave_t *parse_ihave_packet(char *buf, size_t buf_len){
+ihave_t *parse_ihave_packet(handler_input *input, vector *peers){
+    char *buf = input->body_buf;
+    size_t buf_len = input->buf_len;
     char *buf_backup = Malloc(buf_len), *token;
     ihave_t *ihave_res = Malloc(sizeof(ihave_t));
     size_t ihave_msg_nums;
+    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+    size_t idx = get_peer_id(ip_port, peers);
 
     memcpy(buf_backup, buf, buf_len);
     token = strtok(buf_backup, " ");
@@ -135,6 +139,7 @@ ihave_t *parse_ihave_packet(char *buf, size_t buf_len){
     ihave_msg_nums = atoi(token);
     ihave_res->chunk_num = ihave_msg_nums;
     ihave_res->msg = Malloc(buf_len);
+    ihave_res->idx = idx;
     memcpy(ihave_res->msg, buf, buf_len);
     ihave_res->chunks = (char**)Malloc(sizeof(char*) * ihave_msg_nums);
 
@@ -149,19 +154,76 @@ ihave_t *parse_ihave_packet(char *buf, size_t buf_len){
     return ihave_res;
 }
 
-//todo:
-int check_all_ihave_reply_received(ihave_t *ihave_parsed_msg, handler_input
-        *input, job_t *job){
+/**
+ * collect the distribution of chunks among peers
+ * @param chunks_to_download
+ * @param ihave_msgs
+ * @return
+ */
+vector *collect_peer_own_chunk_relation(vector *chunks_to_download, vector
+*ihave_msgs){
+    vector *chunk_peer_relations = Malloc(sizeof(vector));
+    init_vector(peer_chunk_relations, sizeof(chunk_dis));
 
-    return -1;
+    for (size_t i = 0; i < chunks_to_download->len; i++){
+        char *chunk = vec_get(chunks_to_download, i);
+        chunk_dis chunk_info;
+        init_vector(&chunk_info.idx, sizeof(unsigned short));
+        strcpy(chunk_info.msg, chunk);
+
+        for (size_t j = 0; j < ihave_msgs->len; j++){
+            ihave_t *ihave_msg = (ihave_t*)vec_get(ihave_msgs, j);
+            for (size_t k = 0; k < ihave_msg->len; k++){
+                char *k_chunk_owned = ihave_msg->chunks[k];
+                if (!strcmp(chunk, k_chunk_owned) || strstr(chunk,
+                                                            k_chunk_owned)){
+                    vec_add(&chunk_info.idx, &ihave_msg->idx);
+                    break;
+                }
+            }
+        }
+
+        vec_add(peer_chunk_relations, &chunk_info);
+    }
+
+    return chunk_peer_relations;
 }
 
+void send_get_queries(handler_input *input, job_t *job){
+    vector *chunk_peer_relations = collect_peer_own_chunk_relation
+            (job->chunks_to_download, job->ihave_msgs);
+    //todo: send GET queries to all peers
+}
+
+
+
+/**
+ * check whether the IHAVE messages have been received from all peers
+ * @param input
+ * @param job
+ * @return
+ */
+int check_all_ihave_msg_received(handler_input
+        *input, job_t *job){
+    if (job->ihave_msgs->len == job->peers->len){
+        return 1;
+    }
+    return 0;
+}
+
+/**
+ * handles incoming IHAVE packet
+ * @param input
+ * @param job
+ */
 void process_ihave(handler_input *input, job_t *job){
     ihave_t *ihave_parsed_msg;
 
-    ihave_parsed_msg = parse_ihave_packet(input->body_buf, input->buf_len);
-    if (check_all_ihave_reply_received(ihave_parsed_msg, input, job)){
-        //todo: send get queries
+    ihave_parsed_msg = parse_ihave_packet(input, job->peers);
+    vec_add(job->ihave_msgs, ihave_parsed_msg);
+    if (check_all_ihave_msg_received(input, job)){
+        send_get_queries(job);
     }
 
+    return;
 }

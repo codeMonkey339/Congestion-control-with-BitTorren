@@ -57,14 +57,6 @@ typedef struct timer{
 }timer;
 
 
-
-typedef struct chunk_dis{
-  /* the chunk hash */
-  char msg[CHUNK_HASH_SIZE];
-  /* the indexes of peers that own this chunk */
-  vector idx;
-}chunk_dis;
-
 typedef struct chunk_buf{
   /* hash of the chunk */
   char *chunk_hash;

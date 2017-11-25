@@ -44,6 +44,7 @@ void parse_whohas_packet(char *buf, vector *v);
 void process_whohas(handler_input *input, job_t *job);
 char *build_ihave_reply(vector *common_hashes);
 void process_ihave(handler_input *input, job_t *job);
-
+int check_all_ihave_msg_received(handler_input
+                                 *input, job_t *job);
 #endif
 

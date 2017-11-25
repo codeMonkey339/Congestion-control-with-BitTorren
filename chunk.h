@@ -19,6 +19,13 @@
 #define ascii2hex(ascii,len,buf) hex2binary((ascii),(len),(buf))
 #define hex2ascii(buf,len,ascii) binary2hex((buf),(len),(ascii))
 
+typedef struct chunk_dis{
+    /* the chunk hash */
+    char msg[CHUNK_HASH_SIZE];
+    /* the indexes of peers that own this chunk */
+    vector idx;
+}chunk_dis;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
