@@ -27,6 +27,7 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     init_vector(job->chunks_to_download, sizeof(chunk_to_download));
     init_vector(job->chunks_to_copy_from_local, sizeof(chunk_to_download));
     init_vector(job->ihave_msgs, sizeo(ihave_t));
+    init_vector(job->recv_sessions, sizeof(udp_recv_session));
 
     if ((f1 = fopen(chunkfile, "r")) == NULL){
         fprintf(stderr, "Error opening chunkfile %s \n", chunkfile);

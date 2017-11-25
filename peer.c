@@ -237,39 +237,6 @@ char *build_ihave_reply(char *reply, int num){
 
 
 /*
-  this function is a comparator to sort chunk_dis struct
- */
-int chunks_dis_cmp(chunk_dis *dis1, chunk_dis *dis2){
-  if (dis1->idx.len > dis2->idx.len){
-    return 1;
-  }else if (dis1->idx.len < dis2->idx.len){
-    return -1;
-  }else{
-    return 0;
-  }
-}
-
-
-/*
-  initialize the various fields of the sender session
- */
-void build_udp_recv_session(udp_recv_session *session, int peer_id, char *chunk_hash, bt_config_t *config){
-  peer_info_t *peer = get_peer_info(config->peer, peer_id);
-  session->last_packet_acked = 0;
-  session->last_acceptable_frame = session->last_packet_acked + DEFAULT_WINDOW_SIZE;
-  session->peer_id = peer_id;
-  strcpy(session->ip, peer->ip);
-  session->sock = peer->port;
-  strcpy(session->chunk_hash, chunk_hash);
-  session->data = (char*)malloc(CHUNK_LEN);
-  session->data_complete = 0;
-  for (int i = 0; i < sizeof(session->recved_flags) * 1.0 / sizeof(session->recved_flags[0]); i++){
-    session->recved_flags[i] = 0;
-  }
-  return;
-}
-
-/*
  * Have collected replies from all peers. Need to send GET messages to
  * corresponding peers based on scarcity
  *

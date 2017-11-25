@@ -7,6 +7,7 @@
 #include <netdb.h>
 #include <stdlib.h>
 #include <errno.h>
+#include "peer_utils.h"
 
 /*
  * char *msg: the message to send to destination address
@@ -255,3 +256,31 @@ int check_data_complete(vector *recv_sessions, vector *queued_requests, vector *
     return all_data_received;
 }
 
+
+/**
+ * builder for udp_recv_session
+ * @param recv_session
+ * @param peer_id
+ * @param chunk_hash
+ * @param job
+ */
+void build_udp_recv_session(udp_recv_session *recv_session, int peer_id, char
+*chunk_hash, job_t *job){
+    memset(recv_session, 0, sizeof(udp_recv_session));
+    peer_info_t *peer_info = get_peer_info_from_id(job->peers, peer_id);
+    recv_session->last_packet_acked = 0;
+    recv_session->last_acceptable_frame = recv_session->last_packet_acked +
+                                          DEFAULT_WINDOW_SIZE;
+    recv_session->peer_id = peer_id;
+    recv_session->sock = peer->port;
+    strcpy(recv_session->chunk_hash, chunk_hash);
+    recv_session->data = (char*)Malloc(CHUNK_LEN);
+    recv_session->data_complete = 0;
+
+    for (size_t i = 0; i < sizeof(recv_session->recved_flags) / sizeof
+                                                                   (recv_session->recved_flags[0]); i++){
+        recv_session->recved_flags[i] = 0;
+    }
+
+    return;
+}

@@ -20,6 +20,7 @@ typedef struct chunk_to_download{
 typedef struct job_t{
     vector *chunks_to_download;
     vector *chunks_to_copy_from_local;
+    vector *recv_sessions;
     /* a list of peers */
     vector *peers;
     /* contains all IHAVE messages received */

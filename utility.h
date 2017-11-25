@@ -25,11 +25,6 @@ typedef struct data{
   short own;
 }data_t;
 
-typedef struct peer_info{
-  int id;
-  char ip[IP_STR_LEN];
-  int port;
-}peer_info_t;
 
 typedef struct peers{
   vector peer;

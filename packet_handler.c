@@ -189,10 +189,55 @@ vector *collect_peer_own_chunk_relation(vector *chunks_to_download, vector
     return chunk_peer_relations;
 }
 
-void send_get_queries(handler_input *input, job_t *job){
+/**
+ * for each chunk, shuffle the ids of peer owning it
+ * @param chunk_peer_relations
+ * @return
+ */
+vector *shuffle_peer_ids(vector *chunk_peer_relations){
+    //todo: for each vector of ids, randomly shuffle it
+
+    return chunk_peer_relations;
+}
+
+
+int send_get_request(job_t *job, char *chunk_hash, size_t peer_id, int force){
+    //todo: send the GET request to a specific peer
+}
+
+
+/**
+ * loop through all the chunk messages, and send GET packets
+ * @param chunk_peer_relations
+ * @param job
+ */
+void send_get_requests(vector *chunk_peer_relations, job_t *job){
+    for (size_t i = 0; i < chunk_peer_relations.len; i++){
+        chunk_dis *peer_ids_for_a_chunk = vec_get(chunk_peer_relations, i);
+        char *chunk_hash = peer_ids_for_a_chunk->msg;
+        size_t peer_id = *(int*)vec_get(&peer_ids_for_a_chunk->idx, 0);
+        udp_recv_session *recv_session = (udp_recv_session*)Malloc(sizeof
+                                                                  (udp_recv_session));
+        build_udp_recv_session(recv_session, peer_id, chunk_hash,job->peers);
+        if (!send_get_request(job, chunk_hash, peer_id, 0)){
+            vec_add(job->recv_sessions, recv_session);
+            //todo: send get request, pay attention to the force flag?
+        }
+    }
+    return;
+}
+
+
+/**
+ * @param input
+ * @param job
+ */
+vector *get_peer_ids_for_chunks(handler_input *input, job_t *job){
     vector *chunk_peer_relations = collect_peer_own_chunk_relation
             (job->chunks_to_download, job->ihave_msgs);
-    //todo: send GET queries to all peers
+    shuffle_peer_ids(chunk_peer_relations);
+    send_get_requests(chunk_peer_relations, job);
+    return chunk_peer_relations;
 }
 
 
@@ -218,11 +263,14 @@ int check_all_ihave_msg_received(handler_input
  */
 void process_ihave(handler_input *input, job_t *job){
     ihave_t *ihave_parsed_msg;
+    vector *sorted_peer_ids;
 
     ihave_parsed_msg = parse_ihave_packet(input, job->peers);
     vec_add(job->ihave_msgs, ihave_parsed_msg);
     if (check_all_ihave_msg_received(input, job)){
-        send_get_queries(job);
+        sorted_peer_ids = get_peer_ids_for_chunks(input, job);
+        send_get_requests(sorted_peer_ids, job);
+        free(sorted_peer_ids);
     }
 
     return;

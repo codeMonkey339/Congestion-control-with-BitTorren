@@ -19,3 +19,20 @@ int get_peer_id(ip_port_t *ip_port, vector *peers){
             ip_port->ip, ip_port->port);
     return -1;
 }
+
+/**
+ * given the input peer id, return the peer_info_t struct
+ * @param peers
+ * @param idx
+ * @return
+ */
+peer_info_t *get_peer_info_from_id(vector *peers, int idx){
+    peer_info_t *p;
+    for (int i = 0; i < peers->len ;i++){
+        p = (peer_info_t*)vec_get(peers, i);
+        if (p->id == idx){
+            break;
+        }
+    }
+    return p;
+}
