@@ -436,3 +436,22 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
     }
     return;
 }
+
+/**
+ * check whether the recv session exists
+ * @param recv_sessions
+ * @param ip
+ * @param port
+ * @return
+ */
+udp_recv_session *find_recv_session(vector *recv_sessions, char *ip, int port) {
+    for (int i = 0; i < recv_sessions->len; i++) {
+        udp_recv_session *recv_session = (udp_recv_session *) vec_get(
+                recv_sessions, i);
+        if (!strcmp(recv_session->ip, ip) && recv_session->sock == port) {
+            return recv_session;
+        }
+    }
+    return NULL;
+}
+

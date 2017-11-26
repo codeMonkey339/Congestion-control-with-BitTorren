@@ -88,5 +88,7 @@ void init_send_session(udp_session *send_session, job_t *job, ip_port_t *
 ip_port, size_t chunk_idx);
 void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
                               job_t *job);
+udp_recv_session *find_recv_session(vector *recv_sessions, char *ip, int
+port);
 
 #endif /* _RELIABLE_UDP_H */

@@ -61,22 +61,6 @@ int main(int argc, char **argv) {
 }
 
 
-/*
-  vector *sender_sessions: the vector to store all the current sessions
-  char *ip: the ip address of the incoming message
-
-  identify the sender session that store the current reliabel communication
- */
-udp_recv_session *find_recv_session(vector *recv_sessions, char *ip, int sock) {
-    for (int i = 0; i < recv_sessions->len; i++) {
-        udp_recv_session *recv_session = (udp_recv_session *) vec_get(
-                recv_sessions, i);
-        if (!strcmp(recv_session->ip, ip) && recv_session->sock == sock) {
-            return recv_session;
-        }
-    }
-    return NULL;
-}
 
 
 /*
@@ -512,12 +496,11 @@ void process_inbound_udp(int sock, bt_config_t *config) {
                                                &from, fromlen, BUFLEN,
                                                recv_size, header);
     if (header->packType == WHOHAS) {
-        process_whohas(input, config->job);
+        process_whohas_packet(input, config->job);
     } else if (header->packType == IHAVE) {
-        process_ihave(input, config->job);
+        process_ihave_packet(input, config->job);
     } else if (header->packType == GET) {
-        process_peer_get(sock, buf + header->headerLen, from, fromlen, BUFLEN,
-                         config, header);
+        process_get_packet(input, config->job);
     } else if (header->packType == DATA) {
         process_data(sock, buf + header->headerLen, from, fromlen, BUFLEN,
                      config,

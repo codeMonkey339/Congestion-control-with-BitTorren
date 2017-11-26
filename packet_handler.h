@@ -41,9 +41,9 @@ handler_input *build_handler_input(uint16_t incoming_socket, char *body_buf,
                                     recv_size, packet_h *header);
 
 void parse_whohas_packet(char *buf, vector *v);
-void process_whohas(handler_input *input, job_t *job);
+void process_whohas_packet(handler_input *input, job_t *job);
 char *build_ihave_reply(vector *common_hashes);
-void process_ihave(handler_input *input, job_t *job);
+void process_ihave_packet(handler_input *input, job_t *job);
 int check_all_ihave_msg_received(handler_input
                                  *input, job_t *job);
 ihave_t *parse_ihave_packet(handler_input *input, vector *peers);
@@ -55,5 +55,6 @@ int send_get_request(job_t *job, char *chunk_hash, size_t peer_id);
 void send_get_requests(vector *chunk_peer_relations, job_t *job);
 vector *get_peer_ids_for_chunks(handler_input *input, job_t *job);
 int check_all_ihave_msg_received(handler_input *input, job_t *job);
+void process_get_packet(handler_input *input, job_t *job);
 #endif
 

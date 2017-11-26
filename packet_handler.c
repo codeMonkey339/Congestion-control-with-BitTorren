@@ -94,7 +94,7 @@ char *build_ihave_reply(vector *common_hashes){
  * @param input pointer to handler_input which contains necessary info
  * @param job pointer to current job
  */
-void process_whohas(handler_input *input, job_t *job){
+void process_whohas_packet(handler_input *input, job_t *job){
     packet_h reply_header;
     vector v, v2, *common_hashes;
     char *reply;
@@ -317,7 +317,7 @@ int check_all_ihave_msg_received(handler_input *input, job_t *job){
  * @param input
  * @param job
  */
-void process_ihave(handler_input *input, job_t *job){
+void process_ihave_packet(handler_input *input, job_t *job){
     ihave_t *ihave_parsed_msg;
     vector *sorted_peer_ids;
 
@@ -367,7 +367,12 @@ void send_denied_packet(ip_port_t *ip_port, job_t *job){
 }
 
 
-void process_peer_get(handler_input *input, job_t *job){
+/**
+ * handles GET packet
+ * @param input
+ * @param job
+ */
+void process_get_packet(handler_input *input, job_t *job){
     udp_session *send_session = NULL;
     char *requested_chunk_hash;
     size_t chunk_idx;
@@ -387,8 +392,35 @@ void process_peer_get(handler_input *input, job_t *job){
     }
 
     verify_chunk_hash(send_session->f, requested_chunk_hash, chunk_idx);
-    seek_to_chunk_pos(send_session->f, chunk_idx);
     send_udp_packet_reliable(send_session, ip_port, job);
-    //todo: need to add sessions to vector
+
+    vec_add(job->send_sessions, send_session);
+    free(send_session);
     free(requested_chunk_hash);
+    return;
 }
+
+
+void process_data_packet(handler_input *input, job_t *job){
+    size_t packet_num_acked;
+    udp_recv_session *recv_session;
+    packet_h reply_header, *recv_header = input->header;
+    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+
+    if ((recv_session = find_recv_session(job->recv_sessions, ip_port->ip,
+                                          ip_port->port))){
+        fprintf(stderr, "Cannot find recv session from ip: %s and port: "
+                "%d\n", ip_port->ip, ip_port->port);
+        return;
+    }
+
+    if (recv_header->seqNo <= recv_session->last_packet_acked ||
+            recv_header->seqNo > recv_session->last_acceptable_frame){
+        fprintf(stderr, "Received a stray packet out of current window \n");
+        return;
+    }
+    //todo: need to finish the remaining
+
+
+
+    return;
