@@ -316,48 +316,48 @@ void remove_timer(vector *cur_timer, char *ip, int sock){
  *  what if for a certain chunk, none of the peers owning it replies.
  *
  */
-void process_ihave(int sock, char *buf, struct sockaddr_in from,
-                   socklen_t fromlen, int BUFLEN, bt_config_t *config, vector *ihave_msgs, packet_h *header){
-  //todo: what if receive the reply after time out? check whether has received from the peer
-  char *token, *ip, peer_idx, *next_space, *buf_backup;
-  int ihave_nums;
-
-  ip = inet_ntoa(from.sin_addr);
-  /* get the peer_id of the incoming packet */
-  for (int i = 0; i < config->peer->peer.len; i++){
-    peer_info_t *peer = (peer_info_t*)vec_get(&config->peer->peer, i);
-    if (!strcmp(ip, peer->ip)){
-      peer_idx = peer->id;
-      break;
-    }
-  }
-
-  /* parse the IHAVE reply message */
-  buf_backup = (char*)malloc(strlen(buf) + 1);
-  strcpy(buf_backup, buf);
-  token = strtok(buf, " ");
-  token = strtok(NULL, " ");
-  ihave_nums = atoi(token);
-  ihave_t *ihave = (ihave_t*)malloc(sizeof(ihave_t));
-  ihave->chunk_num = ihave_nums;
-  ihave->msg = (char*)malloc(strlen(buf_backup) + 1);
-  strcpy(ihave->msg, buf_backup);
-  ihave->chunks = (char**)malloc(sizeof(char*) * ihave_nums);
-  ihave->idx = peer_idx;
-  for (int i = 0; i < ihave_nums; i++){
-    token = strtok(NULL, " ");
-    ihave->chunks[i] = (char*)malloc(strlen(token) + 1);
-    strcpy(ihave->chunks[i], token);
-  }
-  vec_add(ihave_msgs, ihave);
-  remove_timer(&config->whohas_timers, ip, sock);
-  /* have received the replies from all peers */
-  if (ihave_msgs->len == config->desired_chunks.len){
-    send_get_queries(config, ihave_msgs);
-  }
-  free(buf_backup);
-  return;
-}
+//void process_ihave(int sock, char *buf, struct sockaddr_in from,
+//                   socklen_t fromlen, int BUFLEN, bt_config_t *config, vector *ihave_msgs, packet_h *header){
+//  //todo: what if receive the reply after time out? check whether has received from the peer
+//  char *token, *ip, peer_idx, *next_space, *buf_backup;
+//  int ihave_nums;
+//
+//  ip = inet_ntoa(from.sin_addr);
+//  /* get the peer_id of the incoming packet */
+//  for (int i = 0; i < config->peer->peer.len; i++){
+//    peer_info_t *peer = (peer_info_t*)vec_get(&config->peer->peer, i);
+//    if (!strcmp(ip, peer->ip)){
+//      peer_idx = peer->id;
+//      break;
+//    }
+//  }
+//
+//  /* parse the IHAVE reply message */
+//  buf_backup = (char*)malloc(strlen(buf) + 1);
+//  strcpy(buf_backup, buf);
+//  token = strtok(buf, " ");
+//  token = strtok(NULL, " ");
+//  ihave_nums = atoi(token);
+//  ihave_t *ihave = (ihave_t*)malloc(sizeof(ihave_t));
+//  ihave->chunk_num = ihave_nums;
+//  ihave->msg = (char*)malloc(strlen(buf_backup) + 1);
+//  strcpy(ihave->msg, buf_backup);
+//  ihave->chunks = (char**)malloc(sizeof(char*) * ihave_nums);
+//  ihave->idx = peer_idx;
+//  for (int i = 0; i < ihave_nums; i++){
+//    token = strtok(NULL, " ");
+//    ihave->chunks[i] = (char*)malloc(strlen(token) + 1);
+//    strcpy(ihave->chunks[i], token);
+//  }
+//  vec_add(ihave_msgs, ihave);
+//  remove_timer(&config->whohas_timers, ip, sock);
+//  /* have received the replies from all peers */
+//  if (ihave_msgs->len == config->desired_chunks.len){
+//    send_get_queries(config, ihave_msgs);
+//  }
+//  free(buf_backup);
+//  return;
+//}
 
 /*
   lookg for a session based on from_ip and from_sock,
@@ -661,8 +661,7 @@ void process_inbound_udp(int sock, bt_config_t *config) {
   if (header->packType == WHOHAS){
       process_whohas(input, config->job);
   }else if (header->packType == IHAVE){
-    process_ihave(sock, buf + header->headerLen, from, fromlen, BUFLEN,
-                  config, &config->ihave_msgs, header);
+      process_ihave(input, config->job);
   }else if (header->packType == GET){
     process_peer_get(sock, buf + header->headerLen, from, fromlen, BUFLEN,
                      config, header);

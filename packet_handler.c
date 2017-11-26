@@ -7,7 +7,7 @@
 #include "chunk.h"
 #include "reliable_udp.h"
 #include "peer_utils.h"
-#include <ctype.h>
+#include <sys/socket.h>
 
 /**
  * given a list of chunks to download, build the whohas query message
@@ -164,7 +164,7 @@ ihave_t *parse_ihave_packet(handler_input *input, vector *peers){
 vector *collect_peer_own_chunk_relation(vector *chunks_to_download, vector
 *ihave_msgs){
     vector *chunk_peer_relations = Malloc(sizeof(vector));
-    init_vector(peer_chunk_relations, sizeof(chunk_dis));
+    init_vector(chunk_peer_relations, sizeof(chunk_dis));
 
     for (size_t i = 0; i < chunks_to_download->len; i++){
         char *chunk = vec_get(chunks_to_download, i);
@@ -174,7 +174,7 @@ vector *collect_peer_own_chunk_relation(vector *chunks_to_download, vector
 
         for (size_t j = 0; j < ihave_msgs->len; j++){
             ihave_t *ihave_msg = (ihave_t*)vec_get(ihave_msgs, j);
-            for (size_t k = 0; k < ihave_msg->len; k++){
+            for (size_t k = 0; k < ihave_msg->chunk_num; k++){
                 char *k_chunk_owned = ihave_msg->chunks[k];
                 if (!strcmp(chunk, k_chunk_owned) || strstr(chunk,
                                                             k_chunk_owned)){
@@ -184,7 +184,7 @@ vector *collect_peer_own_chunk_relation(vector *chunks_to_download, vector
             }
         }
 
-        vec_add(peer_chunk_relations, &chunk_info);
+        vec_add(chunk_peer_relations, &chunk_info);
     }
 
     return chunk_peer_relations;
@@ -200,16 +200,16 @@ vector *shuffle_peer_ids(vector *chunk_peer_relations){
     srand((unsigned)time(&t));
     for (size_t i = 0; i < chunk_peer_relations->len; i++){
         chunk_dis *peer_ids = vec_get(chunk_peer_relations, i);
-        size_t *ids = (size_t*)Malloc(sizeof(size_t) * peer_ids->len);
-        size_t shift = rand() % peer_ids->len;
+        size_t *ids = (size_t*)Malloc(sizeof(size_t) * peer_ids->idx.len);
+        size_t shift = rand() % peer_ids->idx.len;
 
-        for (size_t j = 0; j < peer_ids->len; j++){
-            ids[j] = peer_ids->idx[j];
+        for (size_t j = 0; j < peer_ids->idx.len; j++){
+            ids[j] = *(int*)vec_get(&peer_ids->idx, i);
         }
 
-        for (size_t j = 0; j < peer_ids->len; j++){
-            size_t shifted_pos = (j + shift) % peer_ids->len;
-            peer_ids->idx[j] = shifted_pos;
+        for (size_t j = 0; j < peer_ids->idx.len; j++){
+            size_t shifted_pos = (j + shift) % peer_ids->idx.len;
+            *(int*)vec_get(&peer_ids->idx, j) = shifted_pos;
         }
     }
 
@@ -228,11 +228,11 @@ packet_b *build_get_request_body(char *chunk_hash){
     size_t body_len = strlen("GET") +CHUNK_HASH_SIZE + 2;
     char *body = (char*)Malloc(body_len);
 
-    memset(request_body, 0, body_len);
+    memset(packet_body, 0, body_len);
     strcat(body, "GET ");
     strcat(body, chunk_hash);
     packet_body->body = body;
-    packet_body->len = strlen(body) + 1;
+    packet_body->body_len = strlen(body) + 1;
 
     return packet_body;
 }
@@ -244,36 +244,41 @@ packet_b *build_get_request_body(char *chunk_hash){
  * @param peer_id
  * @return
  */
-int send_get_request(vector *peers, char *chunk_hash, size_t peer_id){
+int send_get_request(job_t *job, char *chunk_hash, size_t peer_id){
     packet_h packet_header;
     /* inconsistent behavior, better not use output arguments */
     packet_b *packet_body = build_get_request_body(chunk_hash);
-    build_packet_header(&reply_header, 15441, 1, GET, PACK_HEADER_BASE_LEN,
-                        PACK_HEADER_BASE_LEN + packet_body->len, 0, 0);
-    peer_info_t *peer_info = get_peer_info_from_id(peers, peer_id);
+    build_packet_header(&packet_header, 15441, 1, GET, PACK_HEADER_BASE_LEN,
+                        PACK_HEADER_BASE_LEN + packet_body->body_len, 0, 0);
+    peer_info_t *peer_info = get_peer_info_from_id(job->peers, peer_id);
     ip_port_t *ip_port = convert_peer_info_2_ip_port(peer_info);
     packet_m *packet = packet_message_builder(&packet_header,
                                               packet_body->body,
-                                              packet_body->len);
+                                              packet_body->body_len);
+    send_packet(ip_port->ip, ip_port->port, packet, job->mysock);
+    return 1;
 }
 
 
 /**
  * loop through all the chunk messages, and send GET packets
+ *
+ * Considering GET packets are not supposed to send through reliable
+ * communication, there is no need to set timers
+ *
  * @param chunk_peer_relations
  * @param job
  */
 void send_get_requests(vector *chunk_peer_relations, job_t *job){
-    for (size_t i = 0; i < chunk_peer_relations.len; i++){
+    for (size_t i = 0; i < chunk_peer_relations->len; i++){
         chunk_dis *peer_ids_for_a_chunk = vec_get(chunk_peer_relations, i);
         char *chunk_hash = peer_ids_for_a_chunk->msg;
         size_t peer_id = *(int*)vec_get(&peer_ids_for_a_chunk->idx, 0);
         udp_recv_session *recv_session = (udp_recv_session*)Malloc(sizeof
                                                                   (udp_recv_session));
         build_udp_recv_session(recv_session, peer_id, chunk_hash,job->peers);
-
         /* assumes that there is packet loss here */
-        send_get_request(job->peers, chunk_hash, peer_id);
+        send_get_request(job, chunk_hash, peer_id);
         vec_add(job->recv_sessions, recv_session);
     }
     return;
@@ -300,7 +305,7 @@ vector *get_peer_ids_for_chunks(handler_input *input, job_t *job){
  * @param job
  * @return
  */
-int check_all_ihave_msg_received(handler_input, *input, job_t *job){
+int check_all_ihave_msg_received(handler_input *input, job_t *job){
     if (job->ihave_msgs->len == job->peers->len){
         return 1;
     }
