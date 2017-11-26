@@ -41,7 +41,12 @@ extern "C" {
   /* converts an ascii to hex */
   void hex2binary(char *hex, int len, uint8_t*buf);
 
-  read_chunk(char *filename, vector *v);
+  void read_chunk(char *filename, vector *v);
+  size_t find_chunk_idx_from_hash(char *chunk_hash, char *hash_chunk_file);
+  void seek_to_chunk_pos(FILE *f, size_t chunk_idx);
+  void seek_to_packet_pos(FILE *f, size_t chunk_idx, size_t last_sent_packet);
+  void verify_chunk_hash(FILE *f, char *requested_chunk_hash, size_t chunk_idx);
+  char *get_chunk_hash(char *chunk, size_t size);
 #ifdef __cplusplus
 }
 #endif

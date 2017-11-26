@@ -89,7 +89,7 @@ void hex2binary(char *hex, int len, uint8_t*buf) {
  * @param v vector stores the hashes in the file
  * @return
  */
-read_chunk(char *filename, vector *v){
+void read_chunk(char *filename, vector *v){
 	FILE *f = Fopen(filename, "r");
 	char *token, *line = NULL;
 	size_t line_len;
@@ -112,6 +112,121 @@ read_chunk(char *filename, vector *v){
 	}
 	return;
 }
+
+/**
+ * return the chunk id of the given the input chunk hash
+ * @param chunk_hash
+ * @param hash_chunk_file
+ * @return
+ */
+size_t find_chunk_idx_from_hash(char *chunk_hash, char *hash_chunk_file){
+	FILE *f;
+	char *line, line_backup[BT_FILENAME_LEN], *t;
+	size_t line_len = 0;
+	int idx, chunk_idx;
+
+	f = Fopen(hash_chunk_file, "r");
+	while (getline(&line, &line_len, f) != -1) {
+		memset(line_backup, 0, BT_FILENAME_LEN);
+		strcpy(line_backup, line);
+		t = strtok(line_backup, " ");
+		if (!isdigit(*t)) { /* the first line */
+			t = strtok(NULL, " ");
+			t = strtok(NULL, " "); /* there is a remaining hash line */
+			if (t != NULL) {
+				idx = *(int *) t;
+				t = strtok(NULL, " ");
+				if (!strcmp(t, chunk_hash) || strstr(t, chunk_hash) != NULL) {
+					chunk_idx = idx;
+					free(line);
+					break;
+				}
+			}
+		} else { /* chunk hash line */
+			idx = atoi(t);
+			t = strtok(NULL, " ");
+			if (!strcmp(t, chunk_hash) || strstr(t, chunk_hash) != NULL) {
+				chunk_idx = idx;
+				free(line);
+				break;
+			}
+		}
+		free(line);
+		line = NULL;
+		line_len = 0;
+	}
+	return chunk_idx;
+}
+
+/**
+ * based on input chunk, and chunk length, calculate the hash
+ * @param chunk
+ * @param size
+ * @return
+ */
+char *get_chunk_hash(char *chunk, size_t size){
+	uint8_t *hash;
+	char *chunk_hash;
+	if ((hash = malloc(SHA1_HASH_SIZE * sizeof(uint8_t))) == NULL){
+		fprintf(stderr, "Failed to allocate memory\n");
+		exit(-1);
+	}
+	if ((chunk_hash = malloc(SHA1_HASH_SIZE * 2 + 1)) == NULL){
+		fprintf(stderr, "Failed to allocate memory\n");
+		exit(-1);
+	}
+	shahash((uint8_t*)chunk, size, hash);
+	hex2ascii(hash, SHA1_HASH_SIZE, chunk_hash);
+	free(hash);
+	return chunk_hash;
+}
+
+/**
+ * move the file cursor to the chunk pointed to by chunk_idx
+ * @param f
+ * @param chunk_idx
+ */
+void seek_to_chunk_pos(FILE *f, size_t chunk_idx){
+	uint32_t offset = chunk_idx * CHUNK_LEN;
+	fseek(f, offset, SEEK_SET);
+	return;
+}
+
+/**
+ * verify whether the requested chunk has the same hash as the calculated one
+ * @param f
+ * @param requested_chunk_hash
+ * @param chunk_idx
+ */
+void verify_chunk_hash(FILE *f, char *requested_chunk_hash, size_t chunk_idx){
+	seek_to_chunk_pos(f, chunk_idx);
+	char *buffer = Malloc(CHUNK_LEN);
+	fread(buffer, 1, CHUNK_LEN, f);
+	char *calculated_chunk_hash = get_chunk_hash(buffer, CHUNK_LEN);
+	if (strcmp(calculated_chunk_hash, requested_chunk_hash)){
+		fprintf(stderr, "Unmatched chunk hashes, requested hash %, calculated"
+				" hash %s\n", requested_chunk_hash, calculated_chunk_hash);
+		exit(-1);
+	}
+
+	free(buffer);
+	return;
+}
+
+/**
+ * move the cursor the next packet to send
+ * @param f
+ * @param chunk_idx
+ * @param last_sent_packet
+ */
+void seek_to_packet_pos(FILE *f, size_t chunk_idx, size_t last_sent_packet){
+	size_t offset = chunk_idx * CHUNK_LEN + (UDP_MAX_PACK_SIZE -
+									  PACK_HEADER_BASE_LEN) *
+											 last_sent_packet;
+	fseek(f, offset, SEEK_SET);
+	return;
+}
+
 
 #ifdef _TEST_CHUNK_C_
 int main(int argc, char *argv[]) {

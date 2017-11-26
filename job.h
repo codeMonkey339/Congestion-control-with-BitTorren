@@ -21,16 +21,22 @@ typedef struct job_t{
     vector *chunks_to_download;
     vector *chunks_to_copy_from_local;
     vector *recv_sessions;
+    vector *send_sessions;
     /* a list of peers */
     vector *peers;
     /* contains all IHAVE messages received */
     vector *ihave_msgs;
-    char *outputfile;
-    char *has_chunk_file;
+    char outputfile[BT_FILENAME_LEN];
+    char masterfile[BT_FILENAME_LEN];
+    char has_chunk_file[BT_FILENAME_LEN];
     /* socket the current peer uses */
     int mysock;
+    /* peer id for self */
+    uint8_t identity;
 }job_t;
 
 job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config);
 void job_flood_whohas_msg(vector *peers, char *query_msg, job_t *job);
+void job_deinit(job_t *job);
+void get_masterfile(char *masterfile, char *hash_chunk_file);
 #endif

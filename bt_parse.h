@@ -18,9 +18,9 @@
 #include "utility.h"
 #include "reliable_udp.h"
 #include "job.h"
+#include "constants.h"
 
-#define BT_FILENAME_LEN 255
-#define BT_MAX_PEERS 1024
+
 
 typedef struct bt_peer_s {
   short  id;

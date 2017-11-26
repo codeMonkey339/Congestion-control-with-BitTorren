@@ -17,6 +17,7 @@
 #include "utility.h"
 #include "packet.h"
 #include "constants.h"
+#include "job.h"
 
 #define DEFAULT_WINDOW_SIZE 8
 
@@ -55,7 +56,7 @@ typedef struct udp_session{
   /* ip address of the recipient */
   char ip[IP_STR_LEN];
   /* port of the recipient udp socket */
-  short sock;
+  short port;
   char *chunk_hash;
   short chunk_index;
   char *data;
@@ -81,4 +82,11 @@ int move_window(udp_recv_session *session, char *buf, size_t recv_size, int head
 int check_data_complete(vector *recv_sessions, vector *queued_requests, vector *data);
 void build_udp_recv_session(udp_recv_session *recv_session, int peer_id, char
 *chunk_hash, job_t *job);
+udp_session *find_session(char *from_ip, short from_sock, vector *sessions);
+udp_session *create_new_session();
+void init_send_session(udp_session *send_session, job_t *job, ip_port_t *
+ip_port, size_t chunk_idx);
+void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
+                              job_t *job);
+
 #endif /* _RELIABLE_UDP_H */

@@ -335,3 +335,60 @@ void process_ihave(handler_input *input, job_t *job){
 
     return;
 }
+
+/**
+ * parse from the GET packet, get the chunk_hash requested
+ * @param buf
+ * @param buf_len
+ * @return
+ */
+char *parse_get_packet(char *buf, size_t buf_len){
+    char *buf_backup = Malloc(buf_len);
+    char *chunk_hash;
+
+    memset(buf_backup, 0, buf_len);
+    strcpy(buf_backup, buf);
+    chunk_hash = strtok(buf_backup, " ");
+    chunk_hash = strtok(NULL, " ");
+
+    return chunk_hash;
+}
+
+
+/**
+ * send a DEINIED packet to peer since there is already a connection from it
+ * @param ip_port
+ * @param job
+ */
+void send_denied_packet(ip_port_t *ip_port, job_t *job){
+    //todo: need to send a DENIED packet
+
+    return;
+}
+
+
+void process_peer_get(handler_input *input, job_t *job){
+    udp_session *send_session = NULL;
+    char *requested_chunk_hash;
+    size_t chunk_idx;
+    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+
+
+    requested_chunk_hash = parse_get_packet(input->body_buf, input->buf_len);
+    chunk_idx = find_chunk_idx_from_hash(requested_chunk_hash,
+                                         job->has_chunk_file);
+    if (find_session(ip_port->ip, ip_port->port, job->send_sessions) == NULL){
+        send_session = create_new_session();
+        init_send_session(send_session, job, ip_port, chunk_idx);
+    }else{
+        //todo: need to queue up the requests?
+        send_denied_packet(ip_port, job);
+        return;
+    }
+
+    verify_chunk_hash(send_session->f, requested_chunk_hash, chunk_idx);
+    seek_to_chunk_pos(send_session->f, chunk_idx);
+    send_udp_packet_reliable(send_session, ip_port, job);
+    //todo: need to add sessions to vector
+    free(requested_chunk_hash);
+}

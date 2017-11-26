@@ -14,6 +14,11 @@
 /* packet header length */
 #define PACK_HEADER_BASE_LEN 16
 
+#define BT_FILENAME_LEN 255
+#define BT_MAX_PEERS 1024
+#define SEND_WINDOW_SIZE 8
+#define RECV_WINDOW_SIZE 8
+
 
 enum PACKET_TYPE{
     WHOHAS = 0,
