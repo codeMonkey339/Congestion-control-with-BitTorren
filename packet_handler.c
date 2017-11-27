@@ -404,6 +404,7 @@ void process_get_packet(handler_input *input, job_t *job){
 void process_data_packet(handler_input *input, job_t *job){
     size_t packet_num_acked;
     udp_recv_session *recv_session;
+    packet_m *packet;
     packet_h reply_header, *recv_header = input->header;
     ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
 
@@ -419,8 +420,30 @@ void process_data_packet(handler_input *input, job_t *job){
         fprintf(stderr, "Received a stray packet out of current window \n");
         return;
     }
-    //todo: need to finish the remaining
 
+    if ((recv_session->last_packet_acked + 1) == recv_header->seqNo){
+        packet_num_acked = cumulative_ack(recv_session, input,
+                                          recv_header->seqNo);
+        build_packet_header(&reply_header, 15441, 1, 4, PACK_HEADER_BASE_LEN,
+                            0, 0, recv_session->last_packet_acked);
+    }else{
+        copy_recv_packet_2_buf(recv_session, recv_header);
+        build_packet_header(&reply_header, 15441, 1, 4, PACK_HEADER_BASE_LEN,
+                            0, 0, recv_session->last_packet_acked);
+    }
 
+    packet = packet_message_builder(&reply_header, NULL, 0);
+    send_packet(ip_port->ip, ip_port->port, packet, job->mysock);
 
+    if (input->buf_len < UDP_MAX_PACK_SIZE){
+        copy_chunk_2_job_buf(recv_session, job);
+        if (check_all_chunks_received()){
+            write_data_outputfile();
+        }else{
+            process_queued_up_requests();
+        }
+    }
+
+    free(packet);
     return;
+}

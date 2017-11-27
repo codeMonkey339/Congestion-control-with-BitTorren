@@ -58,7 +58,7 @@ void build_packet_header(packet_h *header, int magicNo, int versionNo, int packT
  * @return
  */
 packet_m * packet_message_builder(char *header, char* body, uint32_t body_len){
-    chunk_m *msg = (chunk_m*)malloc(sizeof(chunk_m));
+    packet_m *msg = (packet_m*)malloc(sizeof(packet_m));
     memset(msg, 0, sizeof(chunk_m));
     memcpy(&msg->header, header, PACK_HEADER_BASE_LEN);
 

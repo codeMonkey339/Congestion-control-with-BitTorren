@@ -18,6 +18,7 @@
 #include "packet.h"
 #include "constants.h"
 #include "job.h"
+#include "packet_handler.h"
 
 #define DEFAULT_WINDOW_SIZE 8
 
@@ -78,7 +79,8 @@ void build_header(packet_h *header, int magicNo, int versionNo, int packType,
                   int headerLen, int packLen, int seqNo, int ackNo);
 void send_packet(char *ip, int port, packet_m *packet, int mysock);
 void build_packet(packet_h *header, char *query, char *msg, size_t query_len);
-int move_window(udp_recv_session *session, char *buf, size_t recv_size, int header_seqNo);
+int cumulative_ack(udp_recv_session *session, handler_input *input,
+                   int header_seqNo);
 int check_data_complete(vector *recv_sessions, vector *queued_requests, vector *data);
 void build_udp_recv_session(udp_recv_session *recv_session, int peer_id, char
 *chunk_hash, job_t *job);

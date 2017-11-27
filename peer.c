@@ -386,7 +386,7 @@ process_data(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen,
                                            recv_size - PACK_HEADER_BASE_LEN);
         fprintf(stdout, "packet hash is %s\n", packet_hash);
         free(packet_hash);
-        forward_n = move_window(session, buf, recv_size, header->seqNo);
+        forward_n = cumulative_ack(session, buf, header->seqNo);
         build_header(&curheader, 15441, 1, 4, PACK_HEADER_BASE_LEN, 0, 0,
                      session->last_packet_acked);
     } else {

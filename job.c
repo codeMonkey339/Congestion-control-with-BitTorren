@@ -6,7 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include "packet_handler.h"
+#include "peer_utils.h"
 #include <ctype.h>
+
+
 /**
  * initialize the job struct with necessary information
  * @param chunkfile
@@ -84,7 +87,9 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
  * @param job
  */
 void job_deinit(job_t *job){
-    //todo: de-intialize the job struct
+    /*todo: de-intialize the job struct
+     * 1. de-initialize chunks_to_download
+     * */
 }
 
 
@@ -135,5 +140,39 @@ void job_flood_whohas_msg(vector *peers, char *query_msg, job_t *job){
         send_packet(peer->ip, peer->port, packet, job->mysock);
         free(packet);
     }
+    return;
+}
+
+
+void copy_chunk_2_job_buf(udp_recv_session *recv_session, job_t *job){
+    vector *chunks_to_download = job->chunks_to_download;
+    recv_session->data_complete = 1;
+
+    for (size_t i = 0; i < chunks_to_download->len; i++){
+        chunk_to_download *chunk = (chunk_to_download*)vec_get
+                (chunks_to_download, i);
+        if (!strcmp(chunk->chunk_hash, recv_session->chunk_hash)){
+            char *calculated_chunk_hash = get_chunk_hash(recv_session->data,
+                                                         CHUNK_LEN);
+            if (!strcmp(calculated_chunk_hash, recv_session->chunk_hash)){
+                chunk->chunk = (char*)Malloc(CHUNK_LEN);
+                memset(chunk->chunk, 0, CHUNK_LEN);
+                memcpy(chunk->chunk, recv_session->data, CHUNK_LEN);
+                fprintf(stdout, "Copied chunk from session buffer to job "
+                        "buffer");
+            }else{
+                /*
+                 * todo: recover from corrupted chunk
+                 * send GET request again
+                 */
+                fprintf(stderr, "Chunk hash doesn't match with calculated "
+                        "hash. Received a corrupted chunk\n");
+            }
+
+            free(calculated_chunk_hash);
+            break;
+        }
+    }
+
     return;
 }

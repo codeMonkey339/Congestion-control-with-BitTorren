@@ -10,6 +10,7 @@
 #include "peer_utils.h"
 #include "job.h"
 #include "chunk.h"
+#include "packet_handler.h"
 
 /*
  * char *msg: the message to send to destination address
@@ -232,38 +233,6 @@ void build_packet(packet_h *header, char *query, char *msg, size_t query_len) {
     return;
 }
 
-/*
-  check the flag array, move forward the window if possible
- */
-int move_window(udp_recv_session *session, char *buf, size_t recv_size,
-                int header_seqNo) {
-    size_t index;
-    size_t arr_size =
-            sizeof(session->recved_flags) / sizeof(session->recved_flags[0]);
-    //todo: the way to copy data is wrong
-    memcpy(session->data +
-           (header_seqNo - 1) * (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN), buf,
-           recv_size - PACK_HEADER_BASE_LEN);
-    session->buf_size += recv_size - PACK_HEADER_BASE_LEN;
-    session->recved_flags[0] = 1;
-    for (index = 0; index < arr_size; index++) {
-        if (session->recved_flags[index] == 0) {
-            break;
-        }
-    }
-    if (index > 0) {
-        session->last_packet_acked += index;
-        session->last_acceptable_frame += index;
-        for (size_t i = 0; i < (arr_size - index); i++) {
-            session->recved_flags[i] = session->recved_flags[i + index];
-        }
-        for (size_t i = (arr_size - index); i < arr_size; i++) {
-            session->recved_flags[i] = 0;
-        }
-    }
-
-    return index;
-}
 
 
 /*
@@ -455,3 +424,56 @@ udp_recv_session *find_recv_session(vector *recv_sessions, char *ip, int port) {
     return NULL;
 }
 
+
+/**
+ * cumulatively acknowledge the received packet, return # of packet acked
+ * @param session
+ * @param input
+ * @param header_seqNo
+ * @return
+ */
+int cumulative_ack(udp_recv_session *session, handler_input *input,
+                   int header_seqNo) {
+    size_t index;
+    size_t arr_size =
+            sizeof(session->recved_flags) / sizeof(session->recved_flags[0]);
+    copy_recv_packet_2_buf(session, index);
+    for (index = 0; index < arr_size; index++) {
+        if (session->recved_flags[index] == 0) {
+            break;
+        }
+    }
+    if (index > 0) {
+        session->last_packet_acked += index;
+        session->last_acceptable_frame += index;
+        for (size_t i = 0; i < (arr_size - index); i++) {
+            session->recved_flags[i] = session->recved_flags[i + index];
+        }
+        for (size_t i = (arr_size - index); i < arr_size; i++) {
+            session->recved_flags[i] = 0;
+        }
+    }
+
+    return index;
+}
+
+/**
+ * copy the received packet to the appropriate buf place
+ * @param recv_session
+ * @param input
+ */
+void copy_recv_packet_2_buf(udp_recv_session *recv_session, handler_input
+*input){
+    size_t seqNo = input->header->seqNo;
+    size_t full_packet_len = UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN;
+    if ((recv_session->last_packet_acked < seqNo) &&
+            (recv_session->last_acceptable_frame >= seqNo)){
+        memcpy(recv_session->data, full_packet_len * (seqNo - 1),
+               input->body_buf);
+        recv_session->buf_size += input->buf_len;
+        recv_session->recved_flags[seqNo - recv_session->last_packet_acked -1]
+                = 1;
+    }
+
+    return;
+}

@@ -56,5 +56,7 @@ void send_get_requests(vector *chunk_peer_relations, job_t *job);
 vector *get_peer_ids_for_chunks(handler_input *input, job_t *job);
 int check_all_ihave_msg_received(handler_input *input, job_t *job);
 void process_get_packet(handler_input *input, job_t *job);
+void copy_recv_packet_2_buf(udp_recv_session *recv_session, handler_input
+*input);
 #endif
 
