@@ -23,9 +23,11 @@ char *build_whohas_query(vector *chunks_to_download){
     sprintf(query + strlen(query), "%d ", chunks_to_download->len);
     for (int i = 0; i < chunks_to_download->len; i++){
         chunk_to_download *chunk = vec_get(chunks_to_download, i);
-        strcat(query, chunk->chunk_hash);
-        if (i != (chunks_to_download->len - 1)){
-            strcat(query, " ");
+        if (!chunk->own){
+            strcat(query, chunk->chunk_hash);
+            if (i != (chunks_to_download->len - 1)){
+                strcat(query, " ");
+            }
         }
     }
     return query;
@@ -436,9 +438,19 @@ void process_data_packet(handler_input *input, job_t *job){
     send_packet(ip_port->ip, ip_port->port, packet, job->mysock);
 
     if (input->buf_len < UDP_MAX_PACK_SIZE){
-        copy_chunk_2_job_buf(recv_session, job);
-        if (check_all_chunks_received()){
-            write_data_outputfile();
+        int chunk_to_download_id = get_chunk_to_download_id
+                (recv_session->chunk_hash, job->chunks_to_download);
+
+        if (!verify_hash(recv_session->chunk_hash, recv_session->data)){
+            copy_chunk_2_job_buf(recv_session, job, chunk_to_download_id);
+        }else{
+            //todo: need to send the packet again
+            fprintf(stderr, "Received a corrupted chunk with chunk hash "
+                    "%s\n", recv_session->chunk_hash);
+        }
+
+        if (!check_all_chunks_received(job->chunks_to_download)){
+            write_data_outputfile(job, job->outputfile);
         }else{
             process_queued_up_requests();
         }

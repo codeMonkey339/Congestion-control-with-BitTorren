@@ -23,7 +23,6 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     memset(job, 0, sizeof(job_t));
 
     job->chunks_to_download = (vector*)Malloc(sizeof(vector));
-    job->chunks_to_copy_from_local = (vector*)Malloc(sizeof(vector));
     job->ihave_msgs = (vector*)Malloc(sizeof(vector));
     job->recv_sessions = (udp_recv_session*)Malloc(sizeof(udp_recv_session));
     job->send_sessions = (udp_session*)Malloc(sizeof(udp_session));
@@ -35,7 +34,6 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     init_vector(&v1, CHUNK_HASH_SIZE);
     init_vector(&v2, CHUNK_HASH_SIZE);
     init_vector(job->chunks_to_download, sizeof(chunk_to_download));
-    init_vector(job->chunks_to_copy_from_local, sizeof(chunk_to_download));
     init_vector(job->ihave_msgs, sizeof(ihave_t));
     init_vector(job->recv_sessions, sizeof(udp_recv_session));
     init_vector(job->send_sessions, sizeof(udp_session));
@@ -55,22 +53,20 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     vector *diff_chunk_hash = vec_diff(&v1, &v2);
     vector *common_chunk_hash = vec_common(&v1, &v2);
     vector *chunks_to_download = job->chunks_to_download;
-    vector *chunks_to_copy_from_local = job->chunks_to_copy_from_local;
 
-    for (int i = 0;i < diff_chunk_hash->len; i++){
+    for (size_t i = 0; i < v1.len; i++){
         chunk_to_download ch;
         memset(&ch, 0, sizeof(chunk_to_download));
-        strcpy(ch.chunk_hash, vec_get(diff_chunk_hash, i));
-        ch.own = 0;
+        strcpy(ch.chunk_hash, vec_get(&v1, i));
+
+        for (size_t j = 0; j < common_chunk_hash->len; j++){
+            if(!strcmp(ch.chunk_hash, vec_get(common_chunk_hash, j))){
+                ch.own = 1;
+            }
+        }
         vec_add(chunks_to_download, &ch);
     }
-    for (int i = 0; i < common_chunk_hash->len; i++){
-        chunk_to_download ch;
-        memset(&ch, 0, sizeof(chunk_to_download));
-        strcpy(ch.chunk_hash, vec_get(common_chunk_hash, i));
-        ch.own = 1;
-        vec_add(chunks_to_copy_from_local, &ch);
-    }
+
     strcpy(job->outputfile, outputfile);
 
 
@@ -143,35 +139,100 @@ void job_flood_whohas_msg(vector *peers, char *query_msg, job_t *job){
     return;
 }
 
-
-void copy_chunk_2_job_buf(udp_recv_session *recv_session, job_t *job){
+/**
+ * once received a complete chunk of data, copy to the buffer in job
+ * @param recv_session
+ * @param job
+ */
+void copy_chunk_2_job_buf(udp_recv_session *recv_session, job_t *job, int
+chunk_to_download_id){
     vector *chunks_to_download = job->chunks_to_download;
     recv_session->data_complete = 1;
+    chunk_to_download *chunk = vec_get(chunks_to_download,
+                                       chunk_to_download_id);
 
+    chunk->chunk = Malloc(CHUNK_LEN);
+    memset(chunk->chunk, 0, CHUNK_LEN);
+    memcpy(chunk->chunk, recv_session->data, CHUNK_LEN);
+    fprintf(stdout, "Copied chunk from session buffer to job "
+            "buffer");
+    return;
+}
+
+
+
+
+/**
+ * find the index of the chunk hash in vector chunks_to_download
+ * @param chunk_hash
+ * @param chunks_to_download
+ * @return
+ */
+int get_chunk_to_download_id(char *chunk_hash, vector *chunks_to_download){
     for (size_t i = 0; i < chunks_to_download->len; i++){
         chunk_to_download *chunk = (chunk_to_download*)vec_get
                 (chunks_to_download, i);
-        if (!strcmp(chunk->chunk_hash, recv_session->chunk_hash)){
-            char *calculated_chunk_hash = get_chunk_hash(recv_session->data,
-                                                         CHUNK_LEN);
-            if (!strcmp(calculated_chunk_hash, recv_session->chunk_hash)){
-                chunk->chunk = (char*)Malloc(CHUNK_LEN);
-                memset(chunk->chunk, 0, CHUNK_LEN);
-                memcpy(chunk->chunk, recv_session->data, CHUNK_LEN);
-                fprintf(stdout, "Copied chunk from session buffer to job "
-                        "buffer");
-            }else{
-                /*
-                 * todo: recover from corrupted chunk
-                 * send GET request again
-                 */
-                fprintf(stderr, "Chunk hash doesn't match with calculated "
-                        "hash. Received a corrupted chunk\n");
-            }
-
-            free(calculated_chunk_hash);
-            break;
+        if(!strcmp(chunk->chunk_hash, chunk_hash)){
+            return i;
         }
+    }
+
+    return -1;
+}
+
+/**
+ * verify that calculated hash from data matches that of the given hash
+ * @param chunk_hash
+ * @param data
+ * @return
+ */
+int verify_hash(char *chunk_hash, char *data){
+    char *calculated_chunk_hash = get_chunk_hash(data, CHUNK_LEN);
+
+    if (!strcmp(chunk_hash, calculated_chunk_hash)){
+        free(calculated_chunk_hash);
+        return 0;
+    }else{
+        free(calculated_chunk_hash);
+        return 1;
+    }
+}
+
+/**
+ * check whether all chunks to be downloaded have been downloaded
+ * @param chunks_to_download
+ * @return
+ */
+int check_all_chunks_received(vector *chunks_to_download){
+    int all_chunks_received = 0;
+    for (size_t i = 0; i < chunks_to_download->len; i++){
+        chunk_to_download *chunk = vec_get(chunks_to_download, i);
+        if (chunk->own){
+            continue;
+        }else{
+            if (chunk->chunk != NULL){
+                continue;
+            }else{
+                all_chunks_received = 1;
+                break;
+            }
+        }
+    }
+
+    return all_chunks_received;
+}
+
+/**
+ * write all received chunks into the outputfile
+ * @param job
+ * @param outputfile
+ */
+void write_data_outputfile(job_t *job, char *outputfile){
+    FILE *newfile = Fopen(outputfile, "w");
+
+    for(size_t i = 0; i < job->chunks_to_download->len; i++){
+        chunk_to_download *chunk = vec_get(job->chunks_to_download, i);
+        fwrite(chunk->chunk, 1, CHUNK_LEN, newfile);
     }
 
     return;
