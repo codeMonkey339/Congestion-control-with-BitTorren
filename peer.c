@@ -126,7 +126,8 @@ request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx, int force) {
     if (force) { // force request for the chunk
         timer_exists = 0;
     }
-    if (timer_exists) { // queue up the message
+    if (timer_exists) {
+        // check queued up requests through timer may not be a good idea
         request_t r;
         strcpy(r.ip, peer->ip);
         r.port = peer->port;
@@ -502,9 +503,7 @@ void process_inbound_udp(int sock, bt_config_t *config) {
     } else if (header->packType == GET) {
         process_get_packet(input, config->job);
     } else if (header->packType == DATA) {
-        process_data(sock, buf + header->headerLen, from, fromlen, BUFLEN,
-                     config,
-                     header, recv_size);
+        process_data_packet(input, config->job);
     } else if (header->packType == DENIED) {
         process_ack(sock, buf + header->headerLen, from, fromlen, BUFLEN,
                     config,

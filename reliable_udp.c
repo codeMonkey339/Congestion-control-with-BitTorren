@@ -310,7 +310,7 @@ udp_session *find_session(char *from_ip, short from_sock, vector *sessions) {
     for (int i = 0; i < sessions->len; i++) {
         udp_session *cur_session = (udp_session *) vec_get(sessions, i);
         if (!strcmp(cur_session->ip, from_ip) &&
-            from_sock == cur_session->sock) {
+            from_sock == cur_session->port) {
             session = cur_session;
             break;
         }
@@ -475,5 +475,49 @@ void copy_recv_packet_2_buf(udp_recv_session *recv_session, handler_input
                 = 1;
     }
 
+    return;
+}
+
+/**
+ * check whether there is recv_session with a peer of given id
+ * @param recv_sessions
+ * @param peer_id
+ * @return
+ */
+int udp_recv_session_exists(vector *recv_sessions, size_t peer_id){
+    for (size_t i = 0; i < recv_sessions->len; i++){
+        udp_recv_session *recv_session = vec_get(recv_sessions, i);
+        if (recv_session->peer_id == peer_id){
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+
+/**
+ * for previously denied GET requests, process one of them connected to the
+ * same peer as the current recv_session
+ *
+ * @param queued_requests
+ * @param recv_session
+ * @param job
+ */
+void process_queued_up_requests(vector *queued_requests, udp_recv_session
+*recv_session, job_t *job){
+    char *hash;
+
+    for (size_t i = 0; i < queued_requests->len; i++){
+        request_t *r = vec_get(queued_requests, i);
+        if (!strcmp(r->ip, recv_session->ip) && r->port == recv_session->sock){
+            hash = strtok(r->chunk, " ");
+            hash = strtok(NULL, " ");
+            send_get_request(job, hash, recv_session->peer_id);
+            vec_delete(queued_requests, r);
+
+            return;
+        }
+    }
     return;
 }

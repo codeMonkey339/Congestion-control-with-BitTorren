@@ -58,5 +58,6 @@ int check_all_ihave_msg_received(handler_input *input, job_t *job);
 void process_get_packet(handler_input *input, job_t *job);
 void copy_recv_packet_2_buf(udp_recv_session *recv_session, handler_input
 *input);
+void process_data_packet(handler_input *input, job_t *job);
 #endif
 

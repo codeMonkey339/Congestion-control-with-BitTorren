@@ -22,6 +22,7 @@ typedef struct job_t{
     vector *chunks_to_download;
     vector *recv_sessions;
     vector *send_sessions;
+    vector *queued_requests;
     /* a list of peers */
     vector *peers;
     /* contains all IHAVE messages received */
@@ -35,6 +36,13 @@ typedef struct job_t{
     uint8_t identity;
 }job_t;
 
+typedef struct request{
+    char ip[IP_STR_LEN];
+    int port;
+    char chunk[CHUNK_HASH_SIZE + 5];
+} request_t;
+
+
 job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config);
 void job_flood_whohas_msg(vector *peers, char *query_msg, job_t *job);
 void job_deinit(job_t *job);
@@ -45,4 +53,5 @@ int get_chunk_to_download_id(char *chunk_hash, vector *chunks_to_download);
 int verify_hash(char *chunk_hash, char *data);
 int check_all_chunks_received(vector *chunks_to_download);
 void write_data_outputfile(job_t *job, char *outputfile);
+request_t *build_request(char *chunk_hash, size_t peer_id, vector *peers);
 #endif

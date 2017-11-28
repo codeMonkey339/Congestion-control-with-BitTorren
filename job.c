@@ -24,8 +24,9 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
 
     job->chunks_to_download = (vector*)Malloc(sizeof(vector));
     job->ihave_msgs = (vector*)Malloc(sizeof(vector));
-    job->recv_sessions = (udp_recv_session*)Malloc(sizeof(udp_recv_session));
-    job->send_sessions = (udp_session*)Malloc(sizeof(udp_session));
+    job->recv_sessions = (vector*)Malloc(sizeof(udp_recv_session));
+    job->send_sessions = (vector*)Malloc(sizeof(udp_session));
+    job->queued_requests = (vector*)Malloc(sizeof(request_t));
     strcpy(job->has_chunk_file, config->has_chunk_file);
     get_masterfile(job->masterfile, job->has_chunk_file);
     job->mysock = config->mysock;
@@ -37,6 +38,7 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     init_vector(job->ihave_msgs, sizeof(ihave_t));
     init_vector(job->recv_sessions, sizeof(udp_recv_session));
     init_vector(job->send_sessions, sizeof(udp_session));
+    init_vector(job->queued_requests, sizeof(request_t));
 
     if ((f1 = fopen(chunkfile, "r")) == NULL){
         fprintf(stderr, "Error opening chunkfile %s \n", chunkfile);
@@ -236,4 +238,23 @@ void write_data_outputfile(job_t *job, char *outputfile){
     }
 
     return;
+}
+
+/**
+ * build a request struct given relevant info
+ * @param chunk_hash
+ * @param peer_id
+ * @param peers
+ * @return
+ */
+request_t *build_request(char *chunk_hash, size_t peer_id, vector *peers){
+    packet_b *get_query = build_get_request_body(chunk_hash);
+    request_t *req = Malloc(sizeof(request_t));
+    peer_info_t *peer_info = get_peer_info_from_id(peers, peer_id);
+    strcpy(req->ip, peer_info->ip);
+    req->port = peer_info->port;
+    strcpy(req->chunk, get_query);
+
+    free(get_query);
+    return  get_query;
 }

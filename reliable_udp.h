@@ -70,7 +70,6 @@ typedef struct udp_session{
 
 
 
-
 void send_udp_packet(char *ip, int port, char *msg);
 void send_udp_packet_with_sock(char *ip, int port_no, char *msg, int sock, int size);
 void send_udp_packet_r(udp_session *session, char *from_ip, int port,
@@ -93,4 +92,7 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
 udp_recv_session *find_recv_session(vector *recv_sessions, char *ip, int
 port);
 
+int udp_recv_session_exists(vector *recv_sessions, size_t peer_id);
+void process_queued_up_requests(vector *queued_requests, udp_recv_session
+*recv_session, job_t *job);
 #endif /* _RELIABLE_UDP_H */

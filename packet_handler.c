@@ -239,6 +239,8 @@ packet_b *build_get_request_body(char *chunk_hash){
     return packet_body;
 }
 
+
+
 /**
  * send the GET packet to peer with id "peer_id"
  * @param job
@@ -248,6 +250,9 @@ packet_b *build_get_request_body(char *chunk_hash){
  */
 int send_get_request(job_t *job, char *chunk_hash, size_t peer_id){
     packet_h packet_header;
+    udp_recv_session *recv_session = (udp_recv_session*)Malloc(sizeof
+                                                                       (udp_recv_session));
+    build_udp_recv_session(recv_session, peer_id, chunk_hash,job->peers);
     /* inconsistent behavior, better not use output arguments */
     packet_b *packet_body = build_get_request_body(chunk_hash);
     build_packet_header(&packet_header, 15441, 1, GET, PACK_HEADER_BASE_LEN,
@@ -258,6 +263,7 @@ int send_get_request(job_t *job, char *chunk_hash, size_t peer_id){
                                               packet_body->body,
                                               packet_body->body_len);
     send_packet(ip_port->ip, ip_port->port, packet, job->mysock);
+    vec_add(job->recv_sessions, recv_session);
     return 1;
 }
 
@@ -276,12 +282,14 @@ void send_get_requests(vector *chunk_peer_relations, job_t *job){
         chunk_dis *peer_ids_for_a_chunk = vec_get(chunk_peer_relations, i);
         char *chunk_hash = peer_ids_for_a_chunk->msg;
         size_t peer_id = *(int*)vec_get(&peer_ids_for_a_chunk->idx, 0);
-        udp_recv_session *recv_session = (udp_recv_session*)Malloc(sizeof
-                                                                  (udp_recv_session));
-        build_udp_recv_session(recv_session, peer_id, chunk_hash,job->peers);
-        /* assumes that there is packet loss here */
-        send_get_request(job, chunk_hash, peer_id);
-        vec_add(job->recv_sessions, recv_session);
+
+        if (!udp_recv_session_exists(job->recv_sessions, peer_id)){
+            send_get_request(job, chunk_hash, peer_id);
+        }else{
+            request_t *req = build_request(chunk_hash, peer_id, job->peers);
+            vec_add(job->queued_requests, req);
+            free(req);
+        }
     }
     return;
 }
@@ -402,9 +410,13 @@ void process_get_packet(handler_input *input, job_t *job){
     return;
 }
 
-
+/**
+ * process packet of type DATA
+ * @param input
+ * @param job
+ */
 void process_data_packet(handler_input *input, job_t *job){
-    size_t packet_num_acked;
+    size_t packet_num_acked, peer_id;
     udp_recv_session *recv_session;
     packet_m *packet;
     packet_h reply_header, *recv_header = input->header;
@@ -438,21 +450,22 @@ void process_data_packet(handler_input *input, job_t *job){
     send_packet(ip_port->ip, ip_port->port, packet, job->mysock);
 
     if (input->buf_len < UDP_MAX_PACK_SIZE){
-        int chunk_to_download_id = get_chunk_to_download_id
-                (recv_session->chunk_hash, job->chunks_to_download);
-
         if (!verify_hash(recv_session->chunk_hash, recv_session->data)){
+            int chunk_to_download_id = get_chunk_to_download_id
+                    (recv_session->chunk_hash, job->chunks_to_download);
             copy_chunk_2_job_buf(recv_session, job, chunk_to_download_id);
         }else{
-            //todo: need to send the packet again
+            //todo: encountered need to send the packet again
             fprintf(stderr, "Received a corrupted chunk with chunk hash "
                     "%s\n", recv_session->chunk_hash);
         }
 
         if (!check_all_chunks_received(job->chunks_to_download)){
+            //todo: need to copy chunks locally available
             write_data_outputfile(job, job->outputfile);
         }else{
-            process_queued_up_requests();
+            process_queued_up_requests(job->queued_requests, recv_session, job);
+            vec_delete(job->recv_sessions, recv_session);
         }
     }
 
