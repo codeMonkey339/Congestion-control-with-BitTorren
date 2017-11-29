@@ -339,9 +339,6 @@ void init_send_session(udp_session *send_session, job_t *job, ip_port_t *
 ip_port, size_t chunk_idx) {
     send_session->last_packet_sent = 0;
     send_session->last_packet_acked = 0;
-    send_session->last_packet_available = 0;
-    send_session->send_window = SEND_WINDOW_SIZE;
-    send_session->recv_window = RECV_WINDOW_SIZE;
     send_session->peer_id = get_peer_id(ip_port, job->peers);
     send_session->dup_ack = 0;
     send_session->f = Fopen(job->masterfile, "r");
@@ -520,4 +517,82 @@ void process_queued_up_requests(vector *queued_requests, udp_recv_session
         }
     }
     return;
+}
+
+/**
+ * free the memory related to a completed udp_recv_session
+ * @param recv_sessions
+ * @param recv_session
+ */
+void free_udp_recv_session(vector *recv_sessions, udp_recv_session *
+recv_session){
+    free(recv_session->data);
+    vec_delete(recv_session, recv_session);
+
+    return;
+}
+
+
+/**
+ * ackknowledge received packet, and move window forward
+ * @param recv_session
+ * @param job
+ * @param input
+ */
+void ack_recv_data_packet(udp_recv_session *recv_session, job_t *job,
+                          handler_input *input){
+    size_t packet_num_acked, peer_id;
+    packet_h reply_header, *recv_header = input->header;
+    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+    packet_m *packet;
+
+    if ((recv_session->last_packet_acked + 1) == recv_header->seqNo){
+        packet_num_acked = cumulative_ack(recv_session, input,
+                                          recv_header->seqNo);
+        build_packet_header(&reply_header, 15441, 1, 4, PACK_HEADER_BASE_LEN,
+                            0, 0, recv_session->last_packet_acked);
+    }else{
+        copy_recv_packet_2_buf(recv_session, recv_header);
+        build_packet_header(&reply_header, 15441, 1, 4, PACK_HEADER_BASE_LEN,
+                            0, 0, recv_session->last_packet_acked);
+    }
+
+    packet = packet_message_builder(&reply_header, NULL, 0);
+    send_packet(ip_port->ip, ip_port->port, packet, job->mysock);
+    free(packet);
+
+    return;
+}
+
+/**
+ * move forward the sending window through sending more packets if any
+ * @param send_session
+ * @param job
+ * @param input
+ */
+void move_send_window_forward(udp_session *send_session, job_t *job,
+                              handler_input *input){
+    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+
+    send_session->last_packet_acked++;
+    send_session->dup_ack = 0;
+    if (send_session->sent_bytes >= CHUNK_LEN &&
+            send_session->last_packet_acked == send_session->last_packet_sent){
+        vec_delete(job->send_sessions, send_session);
+    }else{
+        send_udp_packet_reliable(send_session, ip_port, job);
+    }
+
+    return;
+}
+
+void send_duplicate_data_packet(udp_session *send_session, handler_input *
+input, job_t *job){
+    send_session->dup_ack++;
+
+    if (send_session->dup_ack > MAXIMUM_DUP_ACK){
+        //todo: peer is crashed, need to have recovery mechanism
+    }else{
+        //todo: how to organize repeating packets
+    }
 }

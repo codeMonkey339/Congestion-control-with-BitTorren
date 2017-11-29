@@ -416,10 +416,8 @@ void process_get_packet(handler_input *input, job_t *job){
  * @param job
  */
 void process_data_packet(handler_input *input, job_t *job){
-    size_t packet_num_acked, peer_id;
     udp_recv_session *recv_session;
-    packet_m *packet;
-    packet_h reply_header, *recv_header = input->header;
+    packet_h *recv_header = input->header;
     ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
 
     if ((recv_session = find_recv_session(job->recv_sessions, ip_port->ip,
@@ -435,19 +433,7 @@ void process_data_packet(handler_input *input, job_t *job){
         return;
     }
 
-    if ((recv_session->last_packet_acked + 1) == recv_header->seqNo){
-        packet_num_acked = cumulative_ack(recv_session, input,
-                                          recv_header->seqNo);
-        build_packet_header(&reply_header, 15441, 1, 4, PACK_HEADER_BASE_LEN,
-                            0, 0, recv_session->last_packet_acked);
-    }else{
-        copy_recv_packet_2_buf(recv_session, recv_header);
-        build_packet_header(&reply_header, 15441, 1, 4, PACK_HEADER_BASE_LEN,
-                            0, 0, recv_session->last_packet_acked);
-    }
-
-    packet = packet_message_builder(&reply_header, NULL, 0);
-    send_packet(ip_port->ip, ip_port->port, packet, job->mysock);
+    ack_recv_data_packet(recv_session, job, input);
 
     if (input->buf_len < UDP_MAX_PACK_SIZE){
         if (!verify_hash(recv_session->chunk_hash, recv_session->data)){
@@ -455,9 +441,10 @@ void process_data_packet(handler_input *input, job_t *job){
                     (recv_session->chunk_hash, job->chunks_to_download);
             copy_chunk_2_job_buf(recv_session, job, chunk_to_download_id);
         }else{
-            //todo: encountered need to send the packet again
             fprintf(stderr, "Received a corrupted chunk with chunk hash "
                     "%s\n", recv_session->chunk_hash);
+            send_get_request(job, recv_session->chunk_hash,
+                             recv_session->peer_id);
         }
 
         if (!check_all_chunks_received(job->chunks_to_download)){
@@ -465,10 +452,32 @@ void process_data_packet(handler_input *input, job_t *job){
             write_data_outputfile(job, job->outputfile);
         }else{
             process_queued_up_requests(job->queued_requests, recv_session, job);
-            vec_delete(job->recv_sessions, recv_session);
         }
+        free_udp_recv_session(job->recv_sessions, recv_session);
     }
 
-    free(packet);
+    return;
+}
+
+
+void process_ack_packet(handler_input *input, job_t *job){
+    packet_h *header = input->header;
+    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+    udp_session *send_session = find_session(ip_port->ip, ip_port->port,
+                                             job->send_sessions);
+
+    if (send_session == NULL){
+        fprintf(stderr, "Received a stry ACK packet from ip: %s, port %d\n",
+                ip_port->ip, ip_port->port);
+        return;
+    }
+
+    if (header->ackNo == send_session->last_packet_sent){
+        move_send_window_forward(send_session, job, input);
+    }else{
+        send_duplicate_data_packet(send_session, input, job);
+    }
+
+
     return;
 }

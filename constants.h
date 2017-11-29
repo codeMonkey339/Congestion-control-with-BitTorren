@@ -18,6 +18,7 @@
 #define BT_MAX_PEERS 1024
 #define SEND_WINDOW_SIZE 8
 #define RECV_WINDOW_SIZE 8
+#define MAXIMUM_DUP_ACK 5
 
 
 enum PACKET_TYPE{

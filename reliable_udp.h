@@ -46,9 +46,6 @@ typedef struct udp_sender_session{
 typedef struct udp_session{
   short last_packet_sent;
   short last_packet_acked;
-  short last_packet_available;
-  short send_window;
-  short recv_window;
   short peer_id;
   /* # of duplicate acknowledgements */
   short dup_ack;
@@ -58,9 +55,7 @@ typedef struct udp_session{
   char ip[IP_STR_LEN];
   /* port of the recipient udp socket */
   short port;
-  char *chunk_hash;
   short chunk_index;
-  char *data;
   uint32_t sent_bytes;
   uint32_t index[DEFAULT_WINDOW_SIZE];
   /* timers for sent packets */
@@ -95,4 +90,10 @@ port);
 int udp_recv_session_exists(vector *recv_sessions, size_t peer_id);
 void process_queued_up_requests(vector *queued_requests, udp_recv_session
 *recv_session, job_t *job);
+void free_udp_recv_session(vector *recv_sessions, udp_recv_session *
+recv_session);
+void ack_recv_data_packet(udp_recv_session *recv_session, job_t *job,
+                          handler_input *input);
+void move_send_window_forward(udp_session *send_session, job_t *job,
+                              handler_input *input);
 #endif /* _RELIABLE_UDP_H */
