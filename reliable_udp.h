@@ -96,4 +96,6 @@ void ack_recv_data_packet(udp_recv_session *recv_session, job_t *job,
                           handler_input *input);
 void move_send_window_forward(udp_session *send_session, job_t *job,
                               handler_input *input);
+void handle_duplicate_ack_packet(udp_session *send_session, handler_input *
+input, job_t *job);
 #endif /* _RELIABLE_UDP_H */

@@ -176,27 +176,66 @@ int read_from_sock(int sock, char *buf, int BUFLEN){
 }
 
 
-/*
-  add a new timer into the vector of timers
-*/
-void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf){
-  timer *cur_timer = (timer*)malloc(sizeof(timer));
-  cur_timer->start = clock();
-  cur_timer->repeat_times = 0;
-  strcpy(cur_timer->ip, ip);
-  cur_timer->sock = sock;
-  if (header == NULL){
-    cur_timer->msg = (char*)malloc(strlen(filebuf) + 1);
-    strcpy(cur_timer->msg, filebuf);
-  }else{
-    cur_timer->msg = (char*)malloc(sizeof(packet_h) + strlen(filebuf));
-    memcpy(cur_timer->msg, header, sizeof(packet_h));
-    memcpy(cur_timer->msg + sizeof(packet_h), filebuf, strlen(filebuf));
-  }
-  vec_add(timers, cur_timer);
-  free(cur_timer);
-  return;
+/**
+ * add a timer to the timer vector
+ * @param timers
+ * @param ip
+ * @param sock
+ * @param header
+ * @param filebuf
+ * @param buf_len
+ */
+void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf,
+               size_t buf_len) {
+    timer *cur_timer = (timer *) Malloc(CHUNK_LEN);
+    cur_timer->start = clock();
+    cur_timer->repeat_times = 0;
+    strcpy(cur_timer->ip, ip);
+    cur_timer->sock = sock;
+
+    if (header == NULL) {
+        cur_timer->header = Malloc(sizeof(packet_h));
+        memcpy(cur_timer->header, header, sizeof(packet_h));
+    }
+    if (filebuf == NULL){
+        cur_timer->body = Malloc(buf_len);
+        memcpy(cur_timer->body, filebuf, buf_len);
+    }
+
+    vec_add(timers, cur_timer);
+    free(cur_timer);
+
+    return;
 }
+
+/**
+ * delete a timer from the timer vector
+ * @param timers
+ * @param ip
+ * @param port
+ * @param ackNo
+ */
+void delete_timer_of_ackNo(vector *timers, char *ip, int port, size_t ackNo){
+    for (size_t i = 0;i < timers->len; i++){
+        timer *cur_timer = vec_get(timers, i);
+        if (!strcmp(cur_timer->ip, ip) && cur_timer->sock == port &&
+                cur_timer->header->ackNo == ackNo){
+
+            if (cur_timer->header != NULL){
+                free(cur_timer->header);
+            }
+
+            if (cur_timer->body == NULL){
+                free(cur_timer->body);
+            }
+            vec_delete(timers, cur_timer);
+            return;
+        }
+    }
+
+    return;
+}
+
 
 void test_vec(){
   vector vec;
@@ -248,3 +287,4 @@ char *Malloc(int size){
     }
     return res;
 }
+

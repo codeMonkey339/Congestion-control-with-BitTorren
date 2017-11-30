@@ -135,7 +135,7 @@ request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx, int force) {
         vec_add(&config->request_queue, &r);
     } else {
         //todo: need to handle timeout situation
-        add_timer(&config->get_timers, peer->ip, peer->port, NULL, query);
+        add_timer(&config->get_timers, peer->ip, peer->port, NULL, query, 0);
     }
     free(query);
     free(packet);
@@ -151,7 +151,7 @@ void release_all_timers(bt_config_t *config) {
     vector *whohas = &config->whohas_timers;
     for (int i = 0; i < whohas->len; i++) {
         timer *t = vec_get(whohas, i);
-        free(t->msg);
+        free(t->body);
         free(vec_get(whohas, i));
     }
     return;

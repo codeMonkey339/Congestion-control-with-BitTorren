@@ -43,7 +43,8 @@ typedef struct timer{
   /* socket of recipient */
   short sock;
   /* each timer carries with itself the message to send */
-  char *msg;
+  char *body;
+  packet_h *header;
 }timer;
 
 
@@ -74,13 +75,15 @@ void vec_sort(vector *vec, int (*cmp)(chunk_dis *, chunk_dis*));
 int vec_delete(vector *vec, void *ele);
 void vec_copy2_str(vector *v, char *buf);
 int read_from_sock(int sock, char *buf, int BUFLEN);
-void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf);
+void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf,
+               size_t buf_len);
 void test_vec();
 
 vector *vec_diff(vector *v1, vector *v2);
 vector *vec_common(vector *v1, vector *v2);
 FILE *Fopen(char *filename, char *mode);
 ip_port_t* parse_peer_ip_port(struct sockaddr_in *from);
+void delete_timer_of_ackNo(vector *timers, char *ip, int port, size_t ackNo)
 
 char *Malloc(int size);
 

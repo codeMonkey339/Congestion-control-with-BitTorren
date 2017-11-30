@@ -14,18 +14,18 @@
  * @param chunks_to_download
  * @return
  */
-char *build_whohas_query(vector *chunks_to_download){
+char *build_whohas_query(vector *chunks_to_download) {
     uint32_t query_len = chunks_to_download->len * CHUNK_HASH_SIZE
                          + strlen("WHOHAS");
-    char *query = (char*)malloc(query_len);
+    char *query = (char *) malloc(query_len);
     memset(query, 0, query_len);
     strcat(query, "WHOHAS ");
     sprintf(query + strlen(query), "%d ", chunks_to_download->len);
-    for (int i = 0; i < chunks_to_download->len; i++){
+    for (int i = 0; i < chunks_to_download->len; i++) {
         chunk_to_download *chunk = vec_get(chunks_to_download, i);
-        if (!chunk->own){
+        if (!chunk->own) {
             strcat(query, chunk->chunk_hash);
-            if (i != (chunks_to_download->len - 1)){
+            if (i != (chunks_to_download->len - 1)) {
                 strcat(query, " ");
             }
         }
@@ -47,8 +47,8 @@ char *build_whohas_query(vector *chunks_to_download){
 handler_input *build_handler_input(uint16_t incoming_socket, char *body_buf,
                                    struct socket_in *from_ip, socklen_t
                                    from_len, uint16_t buf_len, uint32_t
-                                   recv_size, packet_h *header){
-    handler_input *res = (handler_input*)malloc(sizeof(handler_input));
+                                   recv_size, packet_h *header) {
+    handler_input *res = (handler_input *) malloc(sizeof(handler_input));
     res->incoming_socket = incoming_socket;
     res->body_buf = body_buf;
     res->from_ip = from_ip;
@@ -64,14 +64,14 @@ handler_input *build_handler_input(uint16_t incoming_socket, char *body_buf,
  * @param buf buffer that contains the WHOHAS message
  * @param v vector that will store the chunk hashes in message
  */
-void parse_whohas_packet(char *buf, vector *v){
+void parse_whohas_packet(char *buf, vector *v) {
     char *token;
     int chunks_num;
 
     token = strtok(buf, " ");
     token = strtok(NULL, " ");
     chunks_num = atoi(token);
-    while(chunks_num-- > 0){
+    while (chunks_num-- > 0) {
         token = strtok(NULL, " ");
         vec_add(v, token);
     }
@@ -83,9 +83,9 @@ void parse_whohas_packet(char *buf, vector *v){
  * @param common_hashes the chunk hashes current peer has
  * @return a string contains the reply IHAVE message
  */
-char *build_ihave_reply(vector *common_hashes){
-    char *res = (char*)malloc(strlen("WHOHAS ") + common_hashes->len *
-                                                 CHUNK_HASH_SIZE);
+char *build_ihave_reply(vector *common_hashes) {
+    char *res = (char *) malloc(strlen("WHOHAS ") + common_hashes->len *
+                                                    CHUNK_HASH_SIZE);
     strcpy(res, "WHOHAS ");
     vec_copy2_str(res + strlen(res), common_hashes);
     return res;
@@ -96,7 +96,7 @@ char *build_ihave_reply(vector *common_hashes){
  * @param input pointer to handler_input which contains necessary info
  * @param job pointer to current job
  */
-void process_whohas_packet(handler_input *input, job_t *job){
+void process_whohas_packet(handler_input *input, job_t *job) {
     packet_h reply_header;
     vector v, v2, *common_hashes;
     char *reply;
@@ -127,7 +127,7 @@ void process_whohas_packet(handler_input *input, job_t *job){
  * @param buf_len
  * @return
  */
-ihave_t *parse_ihave_packet(handler_input *input, vector *peers){
+ihave_t *parse_ihave_packet(handler_input *input, vector *peers) {
     char *buf = input->body_buf;
     size_t buf_len = input->buf_len;
     char *buf_backup = Malloc(buf_len), *token;
@@ -144,9 +144,9 @@ ihave_t *parse_ihave_packet(handler_input *input, vector *peers){
     ihave_res->msg = Malloc(buf_len);
     ihave_res->idx = idx;
     memcpy(ihave_res->msg, buf, buf_len);
-    ihave_res->chunks = (char**)Malloc(sizeof(char*) * ihave_msg_nums);
+    ihave_res->chunks = (char **) Malloc(sizeof(char *) * ihave_msg_nums);
 
-    for (size_t i = 0;i < ihave_msg_nums; i++){
+    for (size_t i = 0; i < ihave_msg_nums; i++) {
         token = strtok(NULL, " ");
         ihave_res->chunks[i] = Malloc(strlen(token) + 1);
         strcpy(ihave_res->chunks[i], token);
@@ -164,22 +164,22 @@ ihave_t *parse_ihave_packet(handler_input *input, vector *peers){
  * @return
  */
 vector *collect_peer_own_chunk_relation(vector *chunks_to_download, vector
-*ihave_msgs){
+*ihave_msgs) {
     vector *chunk_peer_relations = Malloc(sizeof(vector));
     init_vector(chunk_peer_relations, sizeof(chunk_dis));
 
-    for (size_t i = 0; i < chunks_to_download->len; i++){
+    for (size_t i = 0; i < chunks_to_download->len; i++) {
         char *chunk = vec_get(chunks_to_download, i);
         chunk_dis chunk_info;
         init_vector(&chunk_info.idx, sizeof(unsigned short));
         strcpy(chunk_info.msg, chunk);
 
-        for (size_t j = 0; j < ihave_msgs->len; j++){
-            ihave_t *ihave_msg = (ihave_t*)vec_get(ihave_msgs, j);
-            for (size_t k = 0; k < ihave_msg->chunk_num; k++){
+        for (size_t j = 0; j < ihave_msgs->len; j++) {
+            ihave_t *ihave_msg = (ihave_t *) vec_get(ihave_msgs, j);
+            for (size_t k = 0; k < ihave_msg->chunk_num; k++) {
                 char *k_chunk_owned = ihave_msg->chunks[k];
                 if (!strcmp(chunk, k_chunk_owned) || strstr(chunk,
-                                                            k_chunk_owned)){
+                                                            k_chunk_owned)) {
                     vec_add(&chunk_info.idx, &ihave_msg->idx);
                     break;
                 }
@@ -197,21 +197,21 @@ vector *collect_peer_own_chunk_relation(vector *chunks_to_download, vector
  * @param chunk_peer_relations
  * @return
  */
-vector *shuffle_peer_ids(vector *chunk_peer_relations){
+vector *shuffle_peer_ids(vector *chunk_peer_relations) {
     time_t t;
-    srand((unsigned)time(&t));
-    for (size_t i = 0; i < chunk_peer_relations->len; i++){
+    srand((unsigned) time(&t));
+    for (size_t i = 0; i < chunk_peer_relations->len; i++) {
         chunk_dis *peer_ids = vec_get(chunk_peer_relations, i);
-        size_t *ids = (size_t*)Malloc(sizeof(size_t) * peer_ids->idx.len);
+        size_t *ids = (size_t *) Malloc(sizeof(size_t) * peer_ids->idx.len);
         size_t shift = rand() % peer_ids->idx.len;
 
-        for (size_t j = 0; j < peer_ids->idx.len; j++){
-            ids[j] = *(int*)vec_get(&peer_ids->idx, i);
+        for (size_t j = 0; j < peer_ids->idx.len; j++) {
+            ids[j] = *(int *) vec_get(&peer_ids->idx, i);
         }
 
-        for (size_t j = 0; j < peer_ids->idx.len; j++){
+        for (size_t j = 0; j < peer_ids->idx.len; j++) {
             size_t shifted_pos = (j + shift) % peer_ids->idx.len;
-            *(int*)vec_get(&peer_ids->idx, j) = shifted_pos;
+            *(int *) vec_get(&peer_ids->idx, j) = shifted_pos;
         }
     }
 
@@ -219,16 +219,15 @@ vector *shuffle_peer_ids(vector *chunk_peer_relations){
 }
 
 
-
 /**
  * build the body for GET request
  * @param chunk_hash
  * @return
  */
-packet_b *build_get_request_body(char *chunk_hash){
+packet_b *build_get_request_body(char *chunk_hash) {
     packet_b *packet_body = Malloc(sizeof(packet_b));
-    size_t body_len = strlen("GET") +CHUNK_HASH_SIZE + 2;
-    char *body = (char*)Malloc(body_len);
+    size_t body_len = strlen("GET") + CHUNK_HASH_SIZE + 2;
+    char *body = (char *) Malloc(body_len);
 
     memset(packet_body, 0, body_len);
     strcat(body, "GET ");
@@ -240,7 +239,6 @@ packet_b *build_get_request_body(char *chunk_hash){
 }
 
 
-
 /**
  * send the GET packet to peer with id "peer_id"
  * @param job
@@ -248,11 +246,11 @@ packet_b *build_get_request_body(char *chunk_hash){
  * @param peer_id
  * @return
  */
-int send_get_request(job_t *job, char *chunk_hash, size_t peer_id){
+int send_get_request(job_t *job, char *chunk_hash, size_t peer_id) {
     packet_h packet_header;
-    udp_recv_session *recv_session = (udp_recv_session*)Malloc(sizeof
-                                                                       (udp_recv_session));
-    build_udp_recv_session(recv_session, peer_id, chunk_hash,job->peers);
+    udp_recv_session *recv_session = (udp_recv_session *) Malloc(sizeof
+                                                                         (udp_recv_session));
+    build_udp_recv_session(recv_session, peer_id, chunk_hash, job->peers);
     /* inconsistent behavior, better not use output arguments */
     packet_b *packet_body = build_get_request_body(chunk_hash);
     build_packet_header(&packet_header, 15441, 1, GET, PACK_HEADER_BASE_LEN,
@@ -277,15 +275,15 @@ int send_get_request(job_t *job, char *chunk_hash, size_t peer_id){
  * @param chunk_peer_relations
  * @param job
  */
-void send_get_requests(vector *chunk_peer_relations, job_t *job){
-    for (size_t i = 0; i < chunk_peer_relations->len; i++){
+void send_get_requests(vector *chunk_peer_relations, job_t *job) {
+    for (size_t i = 0; i < chunk_peer_relations->len; i++) {
         chunk_dis *peer_ids_for_a_chunk = vec_get(chunk_peer_relations, i);
         char *chunk_hash = peer_ids_for_a_chunk->msg;
-        size_t peer_id = *(int*)vec_get(&peer_ids_for_a_chunk->idx, 0);
+        size_t peer_id = *(int *) vec_get(&peer_ids_for_a_chunk->idx, 0);
 
-        if (!udp_recv_session_exists(job->recv_sessions, peer_id)){
+        if (!udp_recv_session_exists(job->recv_sessions, peer_id)) {
             send_get_request(job, chunk_hash, peer_id);
-        }else{
+        } else {
             request_t *req = build_request(chunk_hash, peer_id, job->peers);
             vec_add(job->queued_requests, req);
             free(req);
@@ -299,7 +297,7 @@ void send_get_requests(vector *chunk_peer_relations, job_t *job){
  * @param input
  * @param job
  */
-vector *get_peer_ids_for_chunks(handler_input *input, job_t *job){
+vector *get_peer_ids_for_chunks(handler_input *input, job_t *job) {
     vector *chunk_peer_relations = collect_peer_own_chunk_relation
             (job->chunks_to_download, job->ihave_msgs);
     shuffle_peer_ids(chunk_peer_relations);
@@ -308,15 +306,14 @@ vector *get_peer_ids_for_chunks(handler_input *input, job_t *job){
 }
 
 
-
 /**
  * check whether the IHAVE messages have been received from all peers
  * @param input
  * @param job
  * @return
  */
-int check_all_ihave_msg_received(handler_input *input, job_t *job){
-    if (job->ihave_msgs->len == job->peers->len){
+int check_all_ihave_msg_received(handler_input *input, job_t *job) {
+    if (job->ihave_msgs->len == job->peers->len) {
         return 1;
     }
     return 0;
@@ -327,13 +324,13 @@ int check_all_ihave_msg_received(handler_input *input, job_t *job){
  * @param input
  * @param job
  */
-void process_ihave_packet(handler_input *input, job_t *job){
+void process_ihave_packet(handler_input *input, job_t *job) {
     ihave_t *ihave_parsed_msg;
     vector *sorted_peer_ids;
 
     ihave_parsed_msg = parse_ihave_packet(input, job->peers);
     vec_add(job->ihave_msgs, ihave_parsed_msg);
-    if (check_all_ihave_msg_received(input, job)){
+    if (check_all_ihave_msg_received(input, job)) {
         sorted_peer_ids = get_peer_ids_for_chunks(input, job);
         send_get_requests(sorted_peer_ids, job);
 
@@ -352,7 +349,7 @@ void process_ihave_packet(handler_input *input, job_t *job){
  * @param buf_len
  * @return
  */
-char *parse_get_packet(char *buf, size_t buf_len){
+char *parse_get_packet(char *buf, size_t buf_len) {
     char *buf_backup = Malloc(buf_len);
     char *chunk_hash;
 
@@ -370,7 +367,7 @@ char *parse_get_packet(char *buf, size_t buf_len){
  * @param ip_port
  * @param job
  */
-void send_denied_packet(ip_port_t *ip_port, job_t *job){
+void send_denied_packet(ip_port_t *ip_port, job_t *job) {
     //todo: need to send a DENIED packet
 
     return;
@@ -382,7 +379,7 @@ void send_denied_packet(ip_port_t *ip_port, job_t *job){
  * @param input
  * @param job
  */
-void process_get_packet(handler_input *input, job_t *job){
+void process_get_packet(handler_input *input, job_t *job) {
     udp_session *send_session = NULL;
     char *requested_chunk_hash;
     size_t chunk_idx;
@@ -392,10 +389,10 @@ void process_get_packet(handler_input *input, job_t *job){
     requested_chunk_hash = parse_get_packet(input->body_buf, input->buf_len);
     chunk_idx = find_chunk_idx_from_hash(requested_chunk_hash,
                                          job->has_chunk_file);
-    if (find_session(ip_port->ip, ip_port->port, job->send_sessions) == NULL){
+    if (find_session(ip_port->ip, ip_port->port, job->send_sessions) == NULL) {
         send_session = create_new_session();
         init_send_session(send_session, job, ip_port, chunk_idx);
-    }else{
+    } else {
         //todo: need to queue up the requests?
         send_denied_packet(ip_port, job);
         return;
@@ -415,42 +412,42 @@ void process_get_packet(handler_input *input, job_t *job){
  * @param input
  * @param job
  */
-void process_data_packet(handler_input *input, job_t *job){
+void process_data_packet(handler_input *input, job_t *job) {
     udp_recv_session *recv_session;
     packet_h *recv_header = input->header;
     ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
 
     if ((recv_session = find_recv_session(job->recv_sessions, ip_port->ip,
-                                          ip_port->port))){
+                                          ip_port->port))) {
         fprintf(stderr, "Cannot find recv session from ip: %s and port: "
                 "%d\n", ip_port->ip, ip_port->port);
         return;
     }
 
     if (recv_header->seqNo <= recv_session->last_packet_acked ||
-            recv_header->seqNo > recv_session->last_acceptable_frame){
+        recv_header->seqNo > recv_session->last_acceptable_frame) {
         fprintf(stderr, "Received a stray packet out of current window \n");
         return;
     }
 
     ack_recv_data_packet(recv_session, job, input);
 
-    if (input->buf_len < UDP_MAX_PACK_SIZE){
-        if (!verify_hash(recv_session->chunk_hash, recv_session->data)){
+    if (input->buf_len < UDP_MAX_PACK_SIZE) {
+        if (!verify_hash(recv_session->chunk_hash, recv_session->data)) {
             int chunk_to_download_id = get_chunk_to_download_id
                     (recv_session->chunk_hash, job->chunks_to_download);
             copy_chunk_2_job_buf(recv_session, job, chunk_to_download_id);
-        }else{
+        } else {
             fprintf(stderr, "Received a corrupted chunk with chunk hash "
                     "%s\n", recv_session->chunk_hash);
             send_get_request(job, recv_session->chunk_hash,
                              recv_session->peer_id);
         }
 
-        if (!check_all_chunks_received(job->chunks_to_download)){
+        if (!check_all_chunks_received(job->chunks_to_download)) {
             //todo: need to copy chunks locally available
             write_data_outputfile(job, job->outputfile);
-        }else{
+        } else {
             process_queued_up_requests(job->queued_requests, recv_session, job);
         }
         free_udp_recv_session(job->recv_sessions, recv_session);
@@ -460,24 +457,25 @@ void process_data_packet(handler_input *input, job_t *job){
 }
 
 
-void process_ack_packet(handler_input *input, job_t *job){
+void process_ack_packet(handler_input *input, job_t *job) {
     packet_h *header = input->header;
     ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
     udp_session *send_session = find_session(ip_port->ip, ip_port->port,
                                              job->send_sessions);
 
-    if (send_session == NULL){
+    if (send_session == NULL) {
         fprintf(stderr, "Received a stry ACK packet from ip: %s, port %d\n",
                 ip_port->ip, ip_port->port);
         return;
     }
 
-    if (header->ackNo == send_session->last_packet_sent){
+    if (header->ackNo == (send_session->last_packet_acked + 1)) {
         move_send_window_forward(send_session, job, input);
-    }else{
-        send_duplicate_data_packet(send_session, input, job);
+    } else if (header->ackNo == send_session->last_packet_sent) {
+        handle_duplicate_ack_packet(send_session, input, job);
+    } else {
+        fprintf(stderr, "Received a stray ACK packet \n");
     }
-
 
     return;
 }

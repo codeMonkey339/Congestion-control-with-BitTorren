@@ -13,7 +13,7 @@
 #include "packet_handler.h"
 
 /*
- * char *msg: the message to send to destination address
+ * char *body: the message to send to destination address
  *
  * send a message through udp procotol
  */
@@ -127,7 +127,7 @@ void send_udp_packet_r(udp_session *session, char *from_ip, int port,
                     session->last_packet_sent++;
                     session->sent_bytes += bytes_to_send;
                     add_timer(&session->timers, from_ip, port, &cur_header,
-                              filebuf);
+                              filebuf, 0);
                 } else {
                     fprintf(stderr,
                             "Failed to read packet from File descriptor %p\n",
@@ -154,7 +154,7 @@ void send_udp_packet_r(udp_session *session, char *from_ip, int port,
                     if (i == 0) {
                         /* only add timer for the repeated packet */
                         add_timer(&session->timers, from_ip, port, &cur_header,
-                                  filebuf);
+                                  filebuf, 0);
                     }
                 } else {
                     fprintf(stderr,
@@ -233,40 +233,6 @@ void build_packet(packet_h *header, char *query, char *msg, size_t query_len) {
     return;
 }
 
-
-
-/*
-  check whether all data packets are received
- */
-int check_data_complete(vector *recv_sessions, vector *queued_requests,
-                        vector *data) {
-    int all_data_received = 1;
-    for (int i = 0; i < data->len; i++) {
-        data_t *d = (data_t *) vec_get(data, i);
-        if (d->own) {
-            continue;
-        } else {
-            if (d->data != NULL) {
-                continue;
-            } else {
-                all_data_received = 0;
-                break;
-            }
-        }
-    }
-    /* if (queued_requests->len > 0){ */
-    /*   return 0; */
-    /* } */
-    /* for (int i = 0; i < recv_sessions->len; i++){ */
-    /*   //todo:need to update logic here */
-    /*   udp_recv_session *cur_session = (udp_recv_session*)vec_get(recv_sessions, i); */
-    /*   if (!cur_session->data_complete){ */
-    /*     all_data_received = 0; */
-    /*     break; */
-    /*   } */
-    /* } */
-    return all_data_received;
-}
 
 
 /**
@@ -392,7 +358,7 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
             send_session->last_packet_sent++;
             send_session->sent_bytes += read_packet_size;
             add_timer(&send_session->timers, ip_port->ip, ip_port->port,
-                      &packet_header, filebuf);
+                      &packet_header, filebuf, read_packet_size);
 
             free(packet);
         }
@@ -586,13 +552,72 @@ void move_send_window_forward(udp_session *send_session, job_t *job,
     return;
 }
 
-void send_duplicate_data_packet(udp_session *send_session, handler_input *
+/**
+ * repeat a sent udp packet
+ * @param send_session
+ * @param input
+ * @param job
+ */
+void repeat_udp_packet_reliable(udp_session *send_session, handler_input
+*input, job_t *job){
+    char *filebuf[UDP_MAX_PACK_SIZE];
+    uint32_t read_packet_size, full_body_size, bytes_to_send, left_bytes;
+    packet_h packet_header;
+    packet_m *packet;
+    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+
+    memset(filebuf, 0, UDP_MAX_PACK_SIZE);
+    memset(&packet_header, 0, sizeof(packet_h));
+    seek_to_packet_pos(send_session->f, send_session->chunk_index,
+                       send_session->last_packet_acked);
+
+    for (size_t i = send_session->last_packet_acked + 1; i <=
+        send_session->last_packet_sent; i++){
+        full_body_size = UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN;
+        if (send_session->sent_bytes == CHUNK_LEN && i ==
+                                                             send_session->last_packet_sent){
+            bytes_to_send = CHUNK_LEN % full_body_size;
+        }else{
+            bytes_to_send = full_body_size;
+        }
+        read_packet_size = fread(filebuf, 1, bytes_to_send, send_session->f);
+        build_packet_header(&packet_header, 15441, 1, 3,
+                            PACK_HEADER_BASE_LEN, read_packet_size,
+                            i,
+                            send_session->last_packet_acked);
+        packet = packet_message_builder(&packet_header, filebuf,
+                                        read_packet_size);
+        send_packet(ip_port->ip, ip_port->port, packet, job->mysock);
+        fprintf(stdout, "Sent a repeating packet of packet number %ud\n", i);
+        free(packet);
+
+        if (i == (send_session->last_packet_acked + 1)){
+            add_timer(&send_session->timers, ip_port->ip, ip_port->port,
+                      &packet_header, filebuf, read_packet_size);
+        }
+    }
+
+    return;
+}
+
+/**
+ * handle received duplicate ACK handle. Initiate crash recovery if necessary
+ * @param send_session
+ * @param input
+ * @param job
+ */
+void handle_duplicate_ack_packet(udp_session *send_session, handler_input *
 input, job_t *job){
+    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
     send_session->dup_ack++;
+    delete_timer_of_ackNo(&send_session->timers, ip_port->ip, ip_port->port,
+                          send_session->last_packet_acked);
 
     if (send_session->dup_ack > MAXIMUM_DUP_ACK){
         //todo: peer is crashed, need to have recovery mechanism
     }else{
-        //todo: how to organize repeating packets
+        repeat_udp_packet_reliable(send_session, input, job);
     }
+
+    return;
 }
