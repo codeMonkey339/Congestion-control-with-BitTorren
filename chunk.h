@@ -24,6 +24,8 @@ typedef struct chunk_dis{
     char msg[CHUNK_HASH_SIZE];
     /* the indexes of peers that own this chunk */
     vector idx;
+    /* current index into the vector idx, used in crash recovery*/
+    size_t cur_idx;
 }chunk_dis;
 
 #ifdef __cplusplus

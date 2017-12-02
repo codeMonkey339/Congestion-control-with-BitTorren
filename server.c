@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
 	  printf("MAGIC: %d\n", ntohs((curr->header).magicnum));
 	  fflush(stdout);
     }
-	// check timers
+	// check sent_packet_timers
   }
 
   return 0;

@@ -57,7 +57,7 @@ struct bt_config_s {
   vector ihave_msgs;
   /* peers stored in a self-implemented vector */
   peers_t *peer;
-  /* timers recording time for whohas messages */
+  /* sent_packet_timers recording time for whohas messages */
   vector whohas_timers;
   vector get_timers;
   /* starter code provided, employs a linked list implementation */

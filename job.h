@@ -27,6 +27,8 @@ typedef struct job_t{
     vector *peers;
     /* contains all IHAVE messages received */
     vector *ihave_msgs;
+    /* for each chunk hash, sorted peer ids based on scarcity */
+    vector *sorted_peer_ids_for_chunks;
     char outputfile[BT_FILENAME_LEN];
     char masterfile[BT_FILENAME_LEN];
     char has_chunk_file[BT_FILENAME_LEN];

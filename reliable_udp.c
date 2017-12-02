@@ -126,7 +126,7 @@ void send_udp_packet_r(udp_session *session, char *from_ip, int port,
                     }
                     session->last_packet_sent++;
                     session->sent_bytes += bytes_to_send;
-                    add_timer(&session->timers, from_ip, port, &cur_header,
+                    add_timer(&session->sent_packet_timers, from_ip, port, &cur_header,
                               filebuf, 0);
                 } else {
                     fprintf(stderr,
@@ -153,7 +153,7 @@ void send_udp_packet_r(udp_session *session, char *from_ip, int port,
                     send_packet(from_ip, port, packet, mysock);
                     if (i == 0) {
                         /* only add timer for the repeated packet */
-                        add_timer(&session->timers, from_ip, port, &cur_header,
+                        add_timer(&session->sent_packet_timers, from_ip, port, &cur_header,
                                   filebuf, 0);
                     }
                 } else {
@@ -245,6 +245,8 @@ void build_packet(packet_h *header, char *query, char *msg, size_t query_len) {
 void build_udp_recv_session(udp_recv_session *recv_session, int peer_id, char
 *chunk_hash, job_t *job) {
     memset(recv_session, 0, sizeof(udp_recv_session));
+    memset(recv_session->chunk_hash, 0, CHUNK_HASH_SIZE);
+
     peer_info_t *peer_info = get_peer_info_from_id(job->peers, peer_id);
     recv_session->last_packet_acked = 0;
     recv_session->last_acceptable_frame = recv_session->last_packet_acked +
@@ -254,6 +256,7 @@ void build_udp_recv_session(udp_recv_session *recv_session, int peer_id, char
     strcpy(recv_session->chunk_hash, chunk_hash);
     recv_session->data = (char *) Malloc(CHUNK_LEN);
     recv_session->data_complete = 0;
+    strcpy(recv_session->chunk_hash, chunk_hash);
 
     for (size_t i = 0; i < sizeof(recv_session->recved_flags) / sizeof
     (recv_session->recved_flags[0]); i++) {
@@ -317,7 +320,7 @@ ip_port, size_t chunk_idx) {
          i++) {
         send_session->index[i] = 0;
     }
-    init_vector(&send_session->timers, sizeof(timer));
+    init_vector(&send_session->sent_packet_timers, sizeof(timer));
     return;
 }
 
@@ -357,7 +360,7 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
             fprintf(stdout, "Sent a packet of size %ud \n", read_packet_size);
             send_session->last_packet_sent++;
             send_session->sent_bytes += read_packet_size;
-            add_timer(&send_session->timers, ip_port->ip, ip_port->port,
+            add_timer(&send_session->sent_packet_timers, ip_port->ip, ip_port->port,
                       &packet_header, filebuf, read_packet_size);
 
             free(packet);
@@ -540,13 +543,37 @@ void move_send_window_forward(udp_session *send_session, job_t *job,
                               handler_input *input){
     ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
 
-    send_session->last_packet_acked++;
+    remove_acked_packet_timers(send_session, input->header->ackNo);
+    send_session->last_packet_acked = input->header->ackNo;
     send_session->dup_ack = 0;
     if (send_session->sent_bytes >= CHUNK_LEN &&
             send_session->last_packet_acked == send_session->last_packet_sent){
         vec_delete(job->send_sessions, send_session);
     }else{
         send_udp_packet_reliable(send_session, ip_port, job);
+    }
+
+    return;
+}
+
+/**
+ * remove the sent packet timers
+ * @param send_session
+ * @param ackNo
+ */
+void remove_acked_packet_timers(udp_session *send_session, size_t ackNo){
+    vector *sent_packet_timers = &send_session->sent_packet_timers;
+
+    for (size_t acked_idx = send_session->last_packet_acked + 1; acked_idx <=
+            ackNo;
+         acked_idx++){
+        for (size_t packet_idx = 0; packet_idx < sent_packet_timers->len;
+             packet_idx++){
+            timer *t = vec_get(sent_packet_timers, packet_idx);
+            if (t->header->seqNo == acked_idx){
+                vec_delete(sent_packet_timers, t);
+            }
+        }
     }
 
     return;
@@ -592,7 +619,7 @@ void repeat_udp_packet_reliable(udp_session *send_session, handler_input
         free(packet);
 
         if (i == (send_session->last_packet_acked + 1)){
-            add_timer(&send_session->timers, ip_port->ip, ip_port->port,
+            add_timer(&send_session->sent_packet_timers, ip_port->ip, ip_port->port,
                       &packet_header, filebuf, read_packet_size);
         }
     }
@@ -610,14 +637,52 @@ void handle_duplicate_ack_packet(udp_session *send_session, handler_input *
 input, job_t *job){
     ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
     send_session->dup_ack++;
-    delete_timer_of_ackNo(&send_session->timers, ip_port->ip, ip_port->port,
+    delete_timer_of_ackNo(&send_session->sent_packet_timers, ip_port->ip, ip_port->port,
                           send_session->last_packet_acked);
 
     if (send_session->dup_ack > MAXIMUM_DUP_ACK){
-        //todo: peer is crashed, need to have recovery mechanism
+        recover_from_crashed_peer(send_session, job);
     }else{
         repeat_udp_packet_reliable(send_session, input, job);
     }
 
+    return;
+}
+
+/**
+ * when a peer is crashed, this function will recover through request the
+ * chunk from another peer. If the crashed peer is the only peer owning the
+ * chunk, then the job will stop.
+ * @param send_session
+ * @param job
+ */
+void recover_from_crashed_peer(udp_session *send_session, job_t *job){
+    vector *sorted_peer_ids_for_chunks = job->sorted_peer_ids_for_chunks;
+
+    if (sorted_peer_ids_for_chunks->len == 1){
+        fprintf(stderr, "The only peer owning chunk with hash %s is crashed. "
+                "The job stops here \n", send_session->chunk_hash);
+    }
+    for (size_t i = 0; i < sorted_peer_ids_for_chunks->len; i++) {
+        chunk_dis *peer_ids_for_a_chunk = vec_get(sorted_peer_ids_for_chunks, i);
+        if (!strcmp(peer_ids_for_a_chunk->msg, send_session->chunk_hash)){
+            char *chunk_hash = peer_ids_for_a_chunk->msg;
+            size_t peer_id = *(int *) vec_get(&peer_ids_for_a_chunk->idx,
+                                              peer_ids_for_a_chunk->cur_idx++);
+            if (!udp_recv_session_exists(job->recv_sessions, peer_id)) {
+                send_get_request(job, chunk_hash, peer_id);
+            } else {
+                if (i != (sorted_peer_ids_for_chunks->len - 1)){
+                    continue;
+                }else{
+                    request_t *req = build_request(chunk_hash, peer_id, job->peers);
+                    vec_add(job->queued_requests, req);
+                    free(req);
+                }
+            }
+        }
+    }
+
+    vec_delete(job->send_sessions, send_session);
     return;
 }

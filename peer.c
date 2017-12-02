@@ -145,7 +145,7 @@ request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx, int force) {
 
 /*
   todo:
-  release all the memories occupies by timers
+  release all the memories occupies by sent_packet_timers
  */
 void release_all_timers(bt_config_t *config) {
     vector *whohas = &config->whohas_timers;
@@ -514,7 +514,7 @@ void handle_user_input(char *line, void *cbdata, bt_config_t *config) {
 
 
 /*
- * checks all the timers stored in config. If there is any timeouts,
+ * checks all the sent_packet_timers stored in config. If there is any timeouts,
  * need to re-send the message.
  *
  * todo: need to remove the timer when the message has been received!
@@ -559,8 +559,8 @@ void release_all_peers(bt_config_t *config) {
  * there is a compromise made here on timer. Since no library is
  * provided to provide the utility of time out & callback. A crude
  * approach is employed here: when a request is sent, the current
- * clock is recorded. In the main loop, all timers will be checked
- * constantly to ensure all timeout timers are processed
+ * clock is recorded. In the main loop, all sent_packet_timers will be checked
+ * constantly to ensure all timeout sent_packet_timers are processed
  */
 void peer_run(bt_config_t *config) {
     int sock;

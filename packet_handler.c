@@ -280,10 +280,12 @@ void send_get_requests(vector *chunk_peer_relations, job_t *job) {
         chunk_dis *peer_ids_for_a_chunk = vec_get(chunk_peer_relations, i);
         char *chunk_hash = peer_ids_for_a_chunk->msg;
         size_t peer_id = *(int *) vec_get(&peer_ids_for_a_chunk->idx, 0);
+        peer_ids_for_a_chunk->cur_idx = 0;
 
         if (!udp_recv_session_exists(job->recv_sessions, peer_id)) {
             send_get_request(job, chunk_hash, peer_id);
         } else {
+            //todo: which place handles queued_requests?
             request_t *req = build_request(chunk_hash, peer_id, job->peers);
             vec_add(job->queued_requests, req);
             free(req);
@@ -301,7 +303,6 @@ vector *get_peer_ids_for_chunks(handler_input *input, job_t *job) {
     vector *chunk_peer_relations = collect_peer_own_chunk_relation
             (job->chunks_to_download, job->ihave_msgs);
     shuffle_peer_ids(chunk_peer_relations);
-    send_get_requests(chunk_peer_relations, job);
     return chunk_peer_relations;
 }
 
@@ -326,17 +327,17 @@ int check_all_ihave_msg_received(handler_input *input, job_t *job) {
  */
 void process_ihave_packet(handler_input *input, job_t *job) {
     ihave_t *ihave_parsed_msg;
-    vector *sorted_peer_ids;
+    vector *sorted_peer_ids_for_chunks;
 
     ihave_parsed_msg = parse_ihave_packet(input, job->peers);
     vec_add(job->ihave_msgs, ihave_parsed_msg);
     if (check_all_ihave_msg_received(input, job)) {
-        sorted_peer_ids = get_peer_ids_for_chunks(input, job);
-        send_get_requests(sorted_peer_ids, job);
+        sorted_peer_ids_for_chunks = get_peer_ids_for_chunks(input, job);
+        job->sorted_peer_ids_for_chunks = sorted_peer_ids_for_chunks;
+        send_get_requests(sorted_peer_ids_for_chunks, job);
 
-
-        vec_free(sorted_peer_ids);
-        free(sorted_peer_ids);
+        vec_free(sorted_peer_ids_for_chunks);
+        free(sorted_peer_ids_for_chunks);
         free(ihave_parsed_msg);
     }
 
@@ -469,7 +470,8 @@ void process_ack_packet(handler_input *input, job_t *job) {
         return;
     }
 
-    if (header->ackNo == (send_session->last_packet_acked + 1)) {
+    /* cumulative acknowledgement could happen*/
+    if (header->ackNo >= (send_session->last_packet_acked + 1)) {
         move_send_window_forward(send_session, job, input);
     } else if (header->ackNo == send_session->last_packet_sent) {
         handle_duplicate_ack_packet(send_session, input, job);
