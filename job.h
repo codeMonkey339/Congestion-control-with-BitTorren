@@ -11,6 +11,7 @@
 /* whether struct contains complete information to download a chunk */
 typedef struct chunk_to_download{
     char chunk_hash[CHUNK_HASH_SIZE];
+    size_t chunk_id;
     /* the sorted peers which have the chunk */
     vector *has_chunk_peers;
     /* whether itself owns the chunk*/
@@ -30,7 +31,10 @@ typedef struct job_t{
     /* for each chunk hash, sorted peer ids based on scarcity */
     vector *sorted_peer_ids_for_chunks;
     char outputfile[BT_FILENAME_LEN];
-    char masterfile[BT_FILENAME_LEN];
+    /* the file that contains all the data chunk hashes */
+    char master_chunk_file[BT_FILENAME_LEN];
+    /* the file that contains all the data chunks */
+    char master_data_file[BT_FILENAME_LEN];
     char has_chunk_file[BT_FILENAME_LEN];
     /* socket the current peer uses */
     int mysock;

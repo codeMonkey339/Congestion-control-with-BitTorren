@@ -266,7 +266,6 @@ FILE *Fopen(char *filename, char *mode){
     return f;
 }
 
-
 ip_port_t* parse_peer_ip_port(struct sockaddr_in *from){
     ip_port_t *h = (ip_port_t*)malloc(sizeof(ip_port_t));
     memset(h, 0, sizeof(ip_port_t));

@@ -285,7 +285,6 @@ void send_get_requests(vector *chunk_peer_relations, job_t *job) {
         if (!udp_recv_session_exists(job->recv_sessions, peer_id)) {
             send_get_request(job, chunk_hash, peer_id);
         } else {
-            //todo: which place handles queued_requests?
             request_t *req = build_request(chunk_hash, peer_id, job->peers);
             vec_add(job->queued_requests, req);
             free(req);
@@ -369,7 +368,10 @@ char *parse_get_packet(char *buf, size_t buf_len) {
  * @param job
  */
 void send_denied_packet(ip_port_t *ip_port, job_t *job) {
-    //todo: need to send a DENIED packet
+    /* todo: need to send a DENIED packet
+     * current request peer will queue up requests, so there is no need to
+     * send DENIED packets
+     */
 
     return;
 }
@@ -389,12 +391,11 @@ void process_get_packet(handler_input *input, job_t *job) {
 
     requested_chunk_hash = parse_get_packet(input->body_buf, input->buf_len);
     chunk_idx = find_chunk_idx_from_hash(requested_chunk_hash,
-                                         job->has_chunk_file);
+                                         job->master_chunk_file);
     if (find_session(ip_port->ip, ip_port->port, job->send_sessions) == NULL) {
         send_session = create_new_session();
         init_send_session(send_session, job, ip_port, chunk_idx);
     } else {
-        //todo: need to queue up the requests?
         send_denied_packet(ip_port, job);
         return;
     }
@@ -438,6 +439,8 @@ void process_data_packet(handler_input *input, job_t *job) {
             int chunk_to_download_id = get_chunk_to_download_id
                     (recv_session->chunk_hash, job->chunks_to_download);
             copy_chunk_2_job_buf(recv_session, job, chunk_to_download_id);
+            /* by OO principle, the method should be within job */
+            update_owned_chunks(job, recv_session->chunk_hash);
         } else {
             fprintf(stderr, "Received a corrupted chunk with chunk hash "
                     "%s\n", recv_session->chunk_hash);
@@ -446,7 +449,6 @@ void process_data_packet(handler_input *input, job_t *job) {
         }
 
         if (!check_all_chunks_received(job->chunks_to_download)) {
-            //todo: need to copy chunks locally available
             write_data_outputfile(job, job->outputfile);
         } else {
             process_queued_up_requests(job->queued_requests, recv_session, job);
@@ -457,7 +459,29 @@ void process_data_packet(handler_input *input, job_t *job) {
     return;
 }
 
+/**
+ * write the hash of the newly downloaded chunk into peer's own has_chunk_file
+ * @param job
+ * @param chunk_hash
+ */
+void update_owned_chunks(job_t *job, char *chunk_hash){
+    size_t chunk_id = find_chunk_idx_from_hash(chunk_hash,
+                                               job->master_chunk_file);
+    char updated_chunk_entry[CHUNK_HASH_SIZE + 3];
+    FILE *f = Fopen(job->has_chunk_file, "a");
 
+    memset(updated_chunk_entry, 0, CHUNK_HASH_SIZE + 3);
+    sprintf("%d %s\n", chunk_id, chunk_hash);
+    fwrite(updated_chunk_entry, 1, strlen(updated_chunk_entry), f);
+    fclose(f);
+    return;
+}
+
+/**
+ * process incoming ACK packet
+ * @param input
+ * @param job
+ */
 void process_ack_packet(handler_input *input, job_t *job) {
     packet_h *header = input->header;
     ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);

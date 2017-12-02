@@ -28,7 +28,9 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     job->send_sessions = (vector*)Malloc(sizeof(udp_session));
     job->queued_requests = (vector*)Malloc(sizeof(request_t));
     strcpy(job->has_chunk_file, config->has_chunk_file);
-    get_masterfile(job->masterfile, job->has_chunk_file);
+    strcpy(job->master_chunk_file, config->chunk_file);
+    strcpy(job->outputfile, outputfile);
+    get_masterfile(job->master_data_file, job->master_chunk_file);
     job->mysock = config->mysock;
     job->peers = &config->peer->peer;
     job->identity = config->identity;
@@ -55,21 +57,8 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     vector *diff_chunk_hash = vec_diff(&v1, &v2);
     vector *common_chunk_hash = vec_common(&v1, &v2);
     vector *chunks_to_download = job->chunks_to_download;
-
-    for (size_t i = 0; i < v1.len; i++){
-        chunk_to_download ch;
-        memset(&ch, 0, sizeof(chunk_to_download));
-        strcpy(ch.chunk_hash, vec_get(&v1, i));
-
-        for (size_t j = 0; j < common_chunk_hash->len; j++){
-            if(!strcmp(ch.chunk_hash, vec_get(common_chunk_hash, j))){
-                ch.own = 1;
-            }
-        }
-        vec_add(chunks_to_download, &ch);
-    }
-
-    strcpy(job->outputfile, outputfile);
+    populate_chunks_to_download(chunks_to_download, &v1, common_chunk_hash,
+                                job);
 
 
 
@@ -78,6 +67,34 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     vec_free(common_chunk_hash);
     free(common_chunk_hash);
     return job;
+}
+
+/**
+ * fill chunks information into the chunks_to_download vector
+ * @param chunks_to_download
+ * @param v1
+ * @param common_chunk_hash
+ * @param job
+ */
+void populate_chunks_to_download(vector *chunks_to_download, vector *v1, vector
+*common_chunk_hash, job_t *job){
+    for (size_t i = 0; i < v1->len; i++){
+        chunk_to_download ch;
+        char *chunk_hash = vec_get(v1, 1);
+        memset(&ch, 0, sizeof(chunk_to_download));
+
+        strcpy(ch.chunk_hash, vec_get(v1, i));
+        ch.chunk_id = find_chunk_idx_from_hash(ch.chunk_hash,
+                                               job->master_chunk_file);
+        for (size_t j = 0; j < common_chunk_hash->len; j++){
+            if(!strcmp(ch.chunk_hash, vec_get(common_chunk_hash, j))){
+                ch.own = 1;
+            }
+        }
+        vec_add(chunks_to_download, &ch);
+    }
+
+    return;
 }
 
 /**
@@ -92,7 +109,7 @@ void job_deinit(job_t *job){
 
 
 /**
- * find the masterfile name in hash_chunk_file and copy into masterfile
+ * find the masterfile name in chunk_file and copy into masterfile
  * @param masterfile
  * @param hash_chunk_file
  */
@@ -110,6 +127,7 @@ void get_masterfile(char *masterfile, char *hash_chunk_file){
             t = strtok(NULL, " ");
             memset(masterfile, 0, BT_FILENAME_LEN);
             strcpy(masterfile, t);
+            free(line);
             break;
         }
         free(line);
@@ -234,11 +252,30 @@ void write_data_outputfile(job_t *job, char *outputfile){
 
     for(size_t i = 0; i < job->chunks_to_download->len; i++){
         chunk_to_download *chunk = vec_get(job->chunks_to_download, i);
+        if (chunk->own){
+            copy_local_chunk(chunk, job);
+        }
         fwrite(chunk->chunk, 1, CHUNK_LEN, newfile);
     }
 
     return;
 }
+
+/**
+ * copy the chunk with chunk->chunk_hash from master data file to chunk->chunk
+ * @param chunk
+ * @param job
+ */
+void copy_local_chunk(chunk_to_download *chunk, job_t *job){
+    FILE *f = Fopen(job->master_data_file, "r");
+    seek_to_chunk_pos(f, chunk->chunk_id);
+
+    chunk->chunk = Malloc(CHUNK_LEN);
+    fread(f, 1, CHUNK_LEN, chunk->chunk);
+
+    return;
+}
+
 
 /**
  * build a request struct given relevant info

@@ -211,7 +211,13 @@ void send_packet(char *ip, int port, packet_m *packet_msg, int mysock) {
     return;
 }
 
-
+/**
+ * given the header & body, build a pacekt with dynamic allocated memory
+ * @param header
+ * @param query
+ * @param msg
+ * @param query_len
+ */
 void build_packet(packet_h *header, char *query, char *msg, size_t query_len) {
     /* there is no endian problem for a single byte */
     uint16_t magicNo = htons(header->magicNo);
@@ -310,7 +316,7 @@ ip_port, size_t chunk_idx) {
     send_session->last_packet_acked = 0;
     send_session->peer_id = get_peer_id(ip_port, job->peers);
     send_session->dup_ack = 0;
-    send_session->f = Fopen(job->masterfile, "r");
+    send_session->f = Fopen(job->master_data_file, "r");
     strcpy(send_session->ip, ip_port->ip);
     send_session->port = ip_port->port;
     send_session->sent_bytes = 0;
