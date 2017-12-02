@@ -17,7 +17,6 @@
 #include <netinet/in.h>
 #include "utility.h"
 #include "reliable_udp.h"
-#include "job.h"
 #include "constants.h"
 
 
@@ -70,7 +69,7 @@ struct bt_config_s {
   /* sender sessions */
   vector recv_sessions;
   /* the current job that is executing */
-  job_t *job;
+  void *job;
 };
 typedef struct bt_config_s bt_config_t;
 

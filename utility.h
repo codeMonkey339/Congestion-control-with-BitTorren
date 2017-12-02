@@ -48,17 +48,6 @@ typedef struct timer{
 }timer;
 
 
-typedef struct chunk_buf{
-  /* hash of the chunk */
-  char *chunk_hash;
-  /* peer ip*/
-  char *ip;
-  /* peer port */
-  short port;
-  /* chunk data */
-  char *data;
-}chunk_buf;
-
 typedef struct ip_port_t{
     char ip[IP_STR_LEN];
     uint16_t port;
@@ -70,8 +59,6 @@ void vec_add(vector *vec, void *ele);
 void *vec_get(vector *vec, int idx);
 void vec_insert_at(vector *vec, void *ele, int idx);
 void vec_free(vector *vec);
-/* chunk_dis is not general enough, how about void* ? */
-void vec_sort(vector *vec, int (*cmp)(chunk_dis *, chunk_dis*));
 int vec_delete(vector *vec, void *ele);
 void vec_copy2_str(vector *v, char *buf);
 int read_from_sock(int sock, char *buf, int BUFLEN);
@@ -83,8 +70,7 @@ vector *vec_diff(vector *v1, vector *v2);
 vector *vec_common(vector *v1, vector *v2);
 FILE *Fopen(char *filename, char *mode);
 ip_port_t* parse_peer_ip_port(struct sockaddr_in *from);
-void delete_timer_of_ackNo(vector *timers, char *ip, int port, size_t ackNo)
-
+void delete_timer_of_ackNo(vector *timers, char *ip, int port, size_t ackNo);
 char *Malloc(int size);
 
 #endif

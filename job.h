@@ -3,6 +3,7 @@
 #include "constants.h"
 #include "utility.h"
 #include "bt_parse.h"
+#include "reliable_udp.h"
 /*
  * job module mainly handles things related to executing the download job
  * like handles timeout, peer crash

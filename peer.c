@@ -25,6 +25,7 @@
 #include <netdb.h>
 #include "packet_handler.h"
 #include "peer_utils.h"
+#include "utility.h"
 
 #define DEFAULT_CHUNK_SIZE 10
 
@@ -61,88 +62,6 @@ int main(int argc, char **argv) {
 }
 
 
-
-
-/*
- * peers_t *peers: a pointer to all peers
- * int idx: the index of the queries peer
- *
- * given a peer index, this function will return the information about that peer
- */
-peer_info_t *get_peer_info(peers_t *peers, int idx) {
-    peer_info_t *p;
-    for (int i = 0; i < peers->peer.len; i++) {
-        p = (peer_info_t *) vec_get(&peers->peer, i);
-        if (p->id == idx) {
-            break;
-        }
-    }
-    return p;
-}
-
-/*
-  find the peer information based on given ip & sock
- */
-peer_info_t *find_peer_from_list(peers_t *peers, char *ip, int sock) {
-    peer_info_t *p;
-    for (int i = 0; i < peers->peer.len; i++) {
-        p = (peer_info_t *) vec_get(&peers->peer, i);
-        if (!strcmp(ip, p->ip) && sock == p->port) {
-            return p;
-        }
-    }
-    return NULL;
-}
-
-
-/*
- * bt_config_t *config: the config struct
- * char *chunk_msg: the chunk hash
- * int peer_idx: index of the peer
- * vector *chunk_data: the vector that will hold chunk data
- */
-int
-request_chunk(bt_config_t *config, char *chunk_msg, int peer_idx, int force) {
-    packet_h header;
-    char *query = (char *) malloc(strlen("GET") + CHUNK_HASH_SIZE + 2), *packet;
-    int timer_exists = 0;
-    memset(query, 0, strlen("GET") + CHUNK_HASH_SIZE + 2);
-    strcat(query, "GET ");
-    strcat(query, chunk_msg);
-    build_header(&header, 15441, 1, 2, PACK_HEADER_BASE_LEN,
-                 PACK_HEADER_BASE_LEN + strlen(query), 0, 0);
-    packet = (char *) malloc(PACK_HEADER_BASE_LEN + strlen(query));
-    peer_info_t *peer = get_peer_info(config->peer, peer_idx);
-    send_packet(peer->ip, peer->port, &header, query, config->mysock,
-                strlen(query));
-
-    for (int i = 0; i < config->get_timers.len; i++) {
-        timer *t = (timer *) vec_get(&config->get_timers, i);
-        if (!strcmp(t->ip, peer->ip) && t->sock == peer->port) {
-            timer_exists = 1;
-            break;
-        }
-    }
-    if (force) { // force request for the chunk
-        timer_exists = 0;
-    }
-    if (timer_exists) {
-        // check queued up requests through timer may not be a good idea
-        request_t r;
-        strcpy(r.ip, peer->ip);
-        r.port = peer->port;
-        strcpy(r.chunk, query);
-        vec_add(&config->request_queue, &r);
-    } else {
-        //todo: need to handle timeout situation
-        add_timer(&config->get_timers, peer->ip, peer->port, NULL, query, 0);
-    }
-    free(query);
-    free(packet);
-    return timer_exists;
-}
-
-
 /*
   todo:
   release all the memories occupies by sent_packet_timers
@@ -170,188 +89,6 @@ void release_all_dynamic_memory(bt_config_t *config) {
         free(ihave);
     }
 
-    return;
-}
-
-
-/*
-  make the functio more generic?
- */
-void remove_timer(vector *cur_timer, char *ip, int sock) {
-    timer *t;
-    for (int i = 0; i < cur_timer->len; i++) {
-        t = (timer *) vec_get(cur_timer, i);
-        if (!strcmp(t->ip, ip) && t->sock == sock) {
-            t->start = -1; /* only need to reset the start time */
-            break;
-        }
-    }
-    return;
-}
-
-int find_chunk_idx(char *chunk, char *chunk_file, char *masterfile) {
-    FILE *f;
-    char *line, line_backup[BT_FILENAME_LEN], *t;
-    size_t line_len = 0;
-    int idx, chunk_idx;
-    if ((f = fopen(chunk_file, "r")) == NULL) {
-        fprintf(stderr, "Failed to open chunk file %s\n", chunk_file);
-        exit(1);
-    }
-    while (getline(&line, &line_len, f) != -1) {
-        memset(line_backup, 0, BT_FILENAME_LEN);
-        strcpy(line_backup, line);
-        t = strtok(line_backup, " ");
-        if (!isdigit(*t)) { /* the first line */
-            t = strtok(NULL, " ");
-            memset(masterfile, 0, BT_FILENAME_LEN);
-            strcpy(masterfile, t);
-            t = strtok(NULL, " "); /* there is a remaining hash line */
-            if (t != NULL) {
-                idx = *(int *) t;
-                t = strtok(NULL, " ");
-                if (!strcmp(t, chunk) || strstr(t, chunk) != NULL) {
-                    chunk_idx = idx;
-                    free(line);
-                    break;
-                }
-            }
-        } else { /* chunk hash line */
-            idx = atoi(t);
-            t = strtok(NULL, " ");
-            if (!strcmp(t, chunk) || strstr(t, chunk) != NULL) {
-                chunk_idx = idx;
-                free(line);
-                break;
-            }
-        }
-        free(line);
-        line = NULL;
-        line_len = 0;
-    }
-    return chunk_idx;
-}
-
-
-/*
-  need to send DATA packet through reliable communication
-
-  Chunk File: i.e c.masterchunks
-  File: <path to the file which neeeds sharing>
-  Chunks:
-  id chunk-hash
-
-  How to handle acknolwegement packet?
-  main a session for each peer, extract sending data packet into a new function.
-
-  the sequence number always starts with 1 for a new "GET" connection
-  should not combine DATA packet and ACK packet. A DATA packet should
-  not contain ACK, and vice versa
-
-  GET packets don't have to be transmitted through reliabe
-  transmission
-
-  Each peer can only have 1 simultaneous download from any other peer
-  in the network, meaning that IP address and UDP port will uniquely
-  determine which download a DATA packet belongs to --> save the
-  trouble demultiplexing packets!
-
-  todo:
-  1. what to do if no slot within the window?
-*/
-void process_peer_get(int sock, char *buf, struct sockaddr_in from,
-                      socklen_t fromlen, int BUFLEN,
-                      bt_config_t *config, packet_h *header) {
-    FILE *f1;
-    char *buf_backup = (char *) malloc(
-            strlen(buf) + 1), *token, masterfile[BT_FILENAME_LEN], *from_ip;
-    int chunk_idx;
-    udp_session *session = NULL;
-    short port = ntohs(from.sin_port);
-    memset(buf_backup, 0, strlen(buf) + 1);
-    strcpy(buf_backup, buf);
-    from_ip = inet_ntoa(from.sin_addr);
-    short session_exist = 1;
-
-    if ((session = find_session(from_ip, port, &config->sessions)) == NULL) {
-        session = (udp_session *) malloc(sizeof(udp_session));
-        memset(session, 0, sizeof(udp_session));
-        session_exist = 0;
-    } else {
-        /*
-          todo:
-          should accept only 1 simultaneous connection from a particular host
-          send a DENIED packet
-         */
-        free(buf_backup);
-        return;
-    }
-
-    token = strtok(buf_backup, " ");
-    token = strtok(NULL, " "); /* token pointers to chunk hash */
-    chunk_idx = find_chunk_idx(token, config->chunk_file, masterfile);
-    if ((f1 = fopen(masterfile, "r")) == NULL) {
-        fprintf(stderr, "Cannot open master chunk file %s \n", masterfile);
-        exit(1);
-    }
-    // debug purpose
-    uint32_t offset = chunk_idx * CHUNK_LEN;
-    char *buffer = (char *) malloc(CHUNK_LEN);
-    fseek(f1, offset, SEEK_SET);
-    fread(buffer, 1, CHUNK_LEN, f1);
-    char *new_chunk_hash = get_chunk_hash(buffer, CHUNK_LEN);
-    if (strcmp(new_chunk_hash, token)) {
-        fprintf(stderr, "unmatched hash, %s\n", new_chunk_hash);
-    }
-    if (session->f == NULL) { // init session struct
-        init_session(session, 8, 8, config->identity, 0, f1, from_ip, port);
-    }
-    session->chunk_index = chunk_idx;
-    send_udp_packet_r(session, from_ip, port, config->mysock, 0);
-    if (!session_exist) {
-        vec_add(&config->sessions, session);
-        free(session);
-    }
-    return;
-}
-
-/*
-  Based on acknowledgements from peers, take next step actions
-*/
-void
-process_ack(int sock, char *buf, struct sockaddr_in from, socklen_t fromLen,
-            int BUFLEN, bt_config_t *config, packet_h *header) {
-    char *from_ip = inet_ntoa(from.sin_addr), file_buf[UDP_MAX_PACK_SIZE];
-    short port = ntohs(from.sin_port);
-    memset(file_buf, 0, UDP_MAX_PACK_SIZE);
-    udp_session *session = find_session(from_ip, port, &config->sessions);
-    if (header->ackNo == (uint32_t) (session->last_packet_acked + 1)) {
-        session->last_packet_acked++;
-        session->dup_ack = 0;
-        if (session->sent_bytes >= CHUNK_LEN) {
-            if (session->last_packet_acked == session->last_packet_sent) {
-                vec_delete(&config->sessions, session);
-            }
-        } else {
-            fseek(session->f, session->chunk_index * CHUNK_LEN + header->ackNo *
-                                                                 (UDP_MAX_PACK_SIZE -
-                                                                  PACK_HEADER_BASE_LEN),
-                  SEEK_SET);
-            send_udp_packet_r(session, from_ip, port, config->mysock, 0);
-        }
-    } else if (header->ackNo == (uint32_t) (session->last_packet_sent)) {
-        /* current repeat times is 5 */
-        session->dup_ack++;
-        if (session->dup_ack > 5) {
-            // todo: the peer is crashes, how to recover?
-        } else {
-            fseek(session->f, session->chunk_index * CHUNK_LEN +
-                              session->last_packet_acked *
-                              (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN),
-                  SEEK_SET);
-            send_udp_packet_r(session, from_ip, port, config->mysock, 1);
-        }
-    }
     return;
 }
 
@@ -392,9 +129,7 @@ void process_inbound_udp(int sock, bt_config_t *config) {
     } else if (header->packType == DATA) {
         process_data_packet(input, config->job);
     } else if (header->packType == DENIED) {
-        process_ack(sock, buf + header->headerLen, from, fromlen, BUFLEN,
-                    config,
-                    header);
+        process_ack_packet(input, config->job);
     } else if (header->packType == 5) {
         //todo: denied packet
     } else {
