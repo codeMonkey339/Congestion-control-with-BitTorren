@@ -95,13 +95,12 @@ void process_inbound_udp(int sock, bt_config_t *config) {
     } else if (header->packType == IHAVE) {
         process_ihave_packet(input, config->job);
     } else if (header->packType == GET) {
-        //todo: 1. need to initialize a sending job here. 2. add another
-        // level of abstraction: jobs since one peer can have multiple
-        // connections
-        process_get_packet(input, config->job);
+        //todo: need to update this function
+        process_get_packet(input, config->send_data_sessions);
     } else if (header->packType == DATA) {
         process_data_packet(input, config->job);
     } else if (header->packType == DENIED) {
+        //todo: need to update this function as well
         process_ack_packet(input, config->job);
     } else if (header->packType == 5) {
         //todo: denied packet
@@ -172,6 +171,11 @@ peers_t *load_peers(bt_config_t *config) {
  */
 void process_commandline_get(char *chunkfile, char *outputfile,
                              bt_config_t *config) {
+    if (config->job != NULL){
+        fprintf(stderr, "Currently in the middle of processing a job. Won't "
+                "execute this new job \n");
+        return;
+    }
     config->job = job_init(chunkfile, outputfile, config);
     char *whohas_query = build_whohas_query(((job_t*)config->job)
                                                     ->chunks_to_download);
