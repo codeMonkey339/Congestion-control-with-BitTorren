@@ -91,10 +91,13 @@ void process_inbound_udp(int sock, bt_config_t *config) {
                                                &from, fromlen, BUFLEN,
                                                recv_size, header);
     if (header->packType == WHOHAS) {
-        process_whohas_packet(input, config->job);
+        process_whohas_packet(input, config->has_chunk_file);
     } else if (header->packType == IHAVE) {
         process_ihave_packet(input, config->job);
     } else if (header->packType == GET) {
+        //todo: 1. need to initialize a sending job here. 2. add another
+        // level of abstraction: jobs since one peer can have multiple
+        // connections
         process_get_packet(input, config->job);
     } else if (header->packType == DATA) {
         process_data_packet(input, config->job);
@@ -129,10 +132,7 @@ peers_t *load_peers(bt_config_t *config) {
     peers_t *peers = (peers_t *) malloc(sizeof(peers_t));
     config->peer = peers;
     init_vector(&peers->peer, sizeof(peer_info_t));
-    if ((f = fopen(peer_list_file, "r")) == NULL) {
-        fprintf(stderr, "Failed to open peer_list_file %s\n", peer_list_file);
-        return NULL;
-    }
+    f = Fopen(peer_list_file, "r");
 
     while (getline(&line, &line_len, f) != -1) {
         memset(line_backup, 0, 100);
@@ -151,10 +151,8 @@ peers_t *load_peers(bt_config_t *config) {
             token = strtok(NULL, " ");
             peer->port = atoi(token);
             vec_add(&peers->peer, peer);
-            /* insert the ihave element into vector */
-            ihave_t *ihave = (ihave_t *) malloc(sizeof(ihave_t));
         } else {
-            // comment line, do nothing here
+            fprintf(stdout, "Read a comment line in node map.\n");
         }
         free(line);
         line = NULL;
@@ -177,7 +175,7 @@ void process_commandline_get(char *chunkfile, char *outputfile,
     config->job = job_init(chunkfile, outputfile, config);
     char *whohas_query = build_whohas_query(((job_t*)config->job)
                                                     ->chunks_to_download);
-    job_flood_whohas_msg(config->peers, whohas_query, config->job);
+    job_flood_whohas_msg(&config->peer->peer, whohas_query, config->job);
     free(whohas_query);
 
     //todo: need to free the memory for job

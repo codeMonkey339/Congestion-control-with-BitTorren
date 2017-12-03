@@ -18,7 +18,6 @@
  * @param config
  */
 job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
-    FILE *f1, *f2;
     vector v1, v2;
     job_t *job = (job_t*)Malloc(sizeof(job_t));
     memset(job, 0, sizeof(job_t));
@@ -33,7 +32,6 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     strcpy(job->outputfile, outputfile);
     get_masterfile(job->master_data_file, job->master_chunk_file);
     job->mysock = config->mysock;
-    job->peers = &config->peer->peer;
     job->identity = config->identity;
     init_vector(&v1, CHUNK_HASH_SIZE);
     init_vector(&v2, CHUNK_HASH_SIZE);
@@ -43,18 +41,8 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     init_vector(job->send_sessions, sizeof(udp_session));
     init_vector(job->queued_requests, sizeof(request_t));
 
-    if ((f1 = fopen(chunkfile, "r")) == NULL){
-        fprintf(stderr, "Error opening chunkfile %s \n", chunkfile);
-        exit(-1);
-    }
-    if ((f2 = fopen(config->has_chunk_file, "r")) == NULL){
-        fprintf(stderr, "Error opening has_chunk_file %s\n",
-                config->has_chunk_file);
-        exit(-1);
-    }
-
-    read_chunk(f1, &v1);
-    read_chunk(f2, &v2);
+    read_chunk(chunkfile, &v1);
+    read_chunk(config->has_chunk_file, &v2);
     vector *diff_chunk_hash = vec_diff(&v1, &v2);
     vector *common_chunk_hash = vec_common(&v1, &v2);
     vector *chunks_to_download = job->chunks_to_download;

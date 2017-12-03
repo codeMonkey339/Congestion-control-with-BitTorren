@@ -96,14 +96,14 @@ char *build_ihave_reply(vector *common_hashes) {
  * @param input pointer to handler_input which contains necessary info
  * @param job pointer to current job
  */
-void process_whohas_packet(handler_input *input, job_t *job) {
+void process_whohas_packet(handler_input *input, char *has_chunk_file) {
     packet_h reply_header;
     vector v, v2, *common_hashes;
     char *reply;
 
     init_vector(&v, CHUNK_HASH_SIZE);
     init_vector(&v2, CHUNK_HASH_SIZE);
-    read_chunk(job->has_chunk_file, &v);
+    read_chunk(has_chunk_file, &v);
     parse_whohas_packet(input->body_buf, &v2);
     common_hashes = vec_common(&v, &v2);
     reply = build_ihave_reply(common_hashes);

@@ -41,7 +41,7 @@ handler_input *build_handler_input(int incoming_socket, char *body_buf,
                                    recv_size, packet_h *header);
 
 void parse_whohas_packet(char *buf, vector *v);
-void process_whohas_packet(handler_input *input, job_t *job);
+void process_whohas_packet(handler_input *input, char *has_chunk_file);
 char *build_ihave_reply(vector *common_hashes);
 void process_ihave_packet(handler_input *input, job_t *job);
 int check_all_ihave_msg_received(handler_input
