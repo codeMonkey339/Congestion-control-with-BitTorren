@@ -16,6 +16,7 @@ set(SOURCE_FILES
         input_buffer.h
         make_chunks.c
         packet.h
+        packet.c
         peer.c
         reliable_udp.c
         reliable_udp.h

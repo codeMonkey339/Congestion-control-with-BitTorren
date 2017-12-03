@@ -33,17 +33,6 @@ char *build_whohas_query(vector *chunks_to_download) {
     return query;
 }
 
-/**
- * builder for handler_input
- * @param incoming_socket
- * @param body_buf
- * @param from_ip
- * @param from_len
- * @param buf_len
- * @param recv_size
- * @param header
- * @return
- */
 handler_input *build_handler_input(uint16_t incoming_socket, char *body_buf,
                                    struct socket_in *from_ip, socklen_t
                                    from_len, uint16_t buf_len, uint32_t

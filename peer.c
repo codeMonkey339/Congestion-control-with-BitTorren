@@ -62,36 +62,6 @@ int main(int argc, char **argv) {
 }
 
 
-/*
-  todo:
-  release all the memories occupies by sent_packet_timers
- */
-void release_all_timers(bt_config_t *config) {
-    vector *whohas = &config->whohas_timers;
-    for (int i = 0; i < whohas->len; i++) {
-        timer *t = vec_get(whohas, i);
-        free(t->body);
-        free(vec_get(whohas, i));
-    }
-    return;
-}
-
-
-void release_all_dynamic_memory(bt_config_t *config) {
-    /* free all the ihave messages */
-    for (int i = 0; i < config->ihave_msgs.len; i++) {
-        ihave_t *ihave = vec_get(&config->ihave_msgs, i);
-        free(ihave->msg);
-        for (int j = 0; j < ihave->chunk_num; j++) {
-            free(ihave->chunks[j]);
-        }
-        free(ihave->chunks);
-        free(ihave);
-    }
-
-    return;
-}
-
 /**
  * entry point to process inbound udp packets, different types of packets
  * will handled separately
@@ -158,12 +128,7 @@ peers_t *load_peers(bt_config_t *config) {
     short peer_id;
     peers_t *peers = (peers_t *) malloc(sizeof(peers_t));
     config->peer = peers;
-    init_vector(&config->ihave_msgs, sizeof(ihave_t));
     init_vector(&peers->peer, sizeof(peer_info_t));
-    init_vector(&config->sessions, sizeof(udp_session));
-    init_vector(&config->desired_chunks, CHUNK_HASH_SIZE);
-    init_vector(&config->recv_sessions, sizeof(udp_recv_session));
-    init_vector(&config->data, sizeof(data_t));
     if ((f = fopen(peer_list_file, "r")) == NULL) {
         fprintf(stderr, "Failed to open peer_list_file %s\n", peer_list_file);
         return NULL;
@@ -188,7 +153,6 @@ peers_t *load_peers(bt_config_t *config) {
             vec_add(&peers->peer, peer);
             /* insert the ihave element into vector */
             ihave_t *ihave = (ihave_t *) malloc(sizeof(ihave_t));
-            vec_add(&config->ihave_msgs, ihave);
         } else {
             // comment line, do nothing here
         }
@@ -208,9 +172,11 @@ peers_t *load_peers(bt_config_t *config) {
  * @param outputfile
  * @param config
  */
-void process_get(char *chunkfile, char *outputfile, bt_config_t *config) {
+void process_commandline_get(char *chunkfile, char *outputfile,
+                             bt_config_t *config) {
     config->job = job_init(chunkfile, outputfile, config);
-    char *whohas_query = build_whohas_query(config->job->chunks_to_download);
+    char *whohas_query = build_whohas_query(((job_t*)config->job)
+                                                    ->chunks_to_download);
     job_flood_whohas_msg(config->peers, whohas_query, config->job);
     free(whohas_query);
 
@@ -242,37 +208,11 @@ void handle_user_input(char *line, void *cbdata, bt_config_t *config) {
      */
     if (sscanf(line, "GET %120s %120s", chunkf, outf)) {
         if (strlen(outf) > 0) {
-            process_get(chunkf, outf, config);
+            process_commandline_get(chunkf, outf, config);
         }
     }
 }
 
-
-/*
- * checks all the sent_packet_timers stored in config. If there is any timeouts,
- * need to re-send the message.
- *
- * todo: need to remove the timer when the message has been received!
- */
-void check_for_timeouts(bt_config_t *config) {
-    // need to check timeouts in other sessions
-
-    /* check for whohas timeouts */
-    for (int i = 0; i < config->whohas_timers.len; i++) {
-        clock_t cur = clock();
-        timer *t = (timer *) vec_get(&config->whohas_timers, i);
-        if (t->start > 0) { /* hasn't received message */
-            if ((cur - t->start) * 1000 / CLOCKS_PER_SEC >=
-                IHAVE_TIMEOUT_TIME) {
-                t->repeat_times++;
-                t->start = clock();
-                //todo: need to send the message again!
-                fprintf(stdout, "Sending the query to the peer again \n");
-            }
-        }
-    }
-    return;
-}
 
 void release_all_peers(bt_config_t *config) {
     for (int i = 0; i < config->peer->peer.len; i++) {
@@ -347,7 +287,6 @@ void peer_run(bt_config_t *config) {
                                    "Currently unused", config);
             }
         }
-        check_for_timeouts(config);
     }
 
     /* try to avoid double release */

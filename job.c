@@ -8,6 +8,7 @@
 #include "packet_handler.h"
 #include "peer_utils.h"
 #include <ctype.h>
+#include "reliable_udp.h"
 
 
 /**
@@ -158,28 +159,6 @@ void job_flood_whohas_msg(vector *peers, char *query_msg, job_t *job){
     }
     return;
 }
-
-/**
- * once received a complete chunk of data, copy to the buffer in job
- * @param recv_session
- * @param job
- */
-void copy_chunk_2_job_buf(udp_recv_session *recv_session, job_t *job, int
-chunk_to_download_id){
-    vector *chunks_to_download = job->chunks_to_download;
-    recv_session->data_complete = 1;
-    chunk_to_download *chunk = vec_get(chunks_to_download,
-                                       chunk_to_download_id);
-
-    chunk->chunk = Malloc(CHUNK_LEN);
-    memset(chunk->chunk, 0, CHUNK_LEN);
-    memcpy(chunk->chunk, recv_session->data, CHUNK_LEN);
-    fprintf(stdout, "Copied chunk from session buffer to job "
-            "buffer");
-    return;
-}
-
-
 
 
 /**

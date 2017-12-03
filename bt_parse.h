@@ -16,7 +16,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include "utility.h"
-#include "reliable_udp.h"
 #include "constants.h"
 
 
@@ -50,24 +49,10 @@ struct bt_config_s {
 
   int argc; 
   char **argv;
-  /* vector storing the chunks hashes that needs to be downloaded */
-  vector desired_chunks;
-  /* vector storing all the ihave messages from peers */
-  vector ihave_msgs;
   /* peers stored in a self-implemented vector */
   peers_t *peer;
-  /* sent_packet_timers recording time for whohas messages */
-  vector whohas_timers;
-  vector get_timers;
   /* starter code provided, employs a linked list implementation */
   bt_peer_t *peers;
-  /* the queue to store future requests */
-  vector request_queue;
-  /* udp sessions between host & its peers */
-  vector sessions;
-  vector data;
-  /* sender sessions */
-  vector recv_sessions;
   /* the current job that is executing */
   void *job;
 };

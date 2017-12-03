@@ -118,5 +118,10 @@ void move_send_window_forward(udp_session *send_session, job_t *job,
 
 void handle_duplicate_ack_packet(udp_session *send_session, handler_input *
 input, job_t *job);
+void copy_recv_packet_2_buf(udp_recv_session *recv_session, handler_input
+*input);
+
+void copy_chunk_2_job_buf(udp_recv_session *recv_session, job_t *job, int
+chunk_to_download_id);
 
 #endif /* _RELIABLE_UDP_H */
