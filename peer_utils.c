@@ -45,7 +45,8 @@ peer_info_t *get_peer_info_from_id(vector *peers, int idx){
  */
 ip_port_t *convert_peer_info_2_ip_port(peer_info_t *peer_info){
     ip_port_t *ip_port = (ip_port_t*)Malloc(sizeof(ip_port_t));
-    ip_port->ip = peer_info->ip;
+    memset(ip_port->ip, 0, IP_STR_LEN);
+    strcpy(ip_port->ip, peer_info->ip);
     ip_port->port = peer_info->port;
     return ip_port;
 }

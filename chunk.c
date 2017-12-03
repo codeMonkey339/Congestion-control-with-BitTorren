@@ -5,6 +5,7 @@
 #include <stdlib.h> // for malloc
 #include <string.h> // for memset
 #include <stdio.h>
+#include "utility.h"
 
 /**
  * fp -- the file pointer you want to chunkify.
