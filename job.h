@@ -42,6 +42,12 @@ typedef struct job_t{
     uint8_t identity;
 }job_t;
 
+typedef struct send_data_sessions{
+    vector send_sessions;
+    char master_chunk_file[BT_FILENAME_LEN];
+    int mysock;
+}send_data_sessions;
+
 typedef struct request{
     char ip[IP_STR_LEN];
     int port;

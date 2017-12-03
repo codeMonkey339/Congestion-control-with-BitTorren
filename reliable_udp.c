@@ -334,10 +334,10 @@ ip_port, size_t chunk_idx) {
  * given the input udp_session, send packets within send_window reliably
  * @param send_session
  * @param ip_port
- * @param job
+ * @param mysock
  */
 void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
-                              job_t *job) {
+                              int mysock) {
     if ((send_session->last_packet_sent - send_session->last_packet_acked) <
         SEND_WINDOW_SIZE) {
         char *filebuf[UDP_MAX_PACK_SIZE];
@@ -362,7 +362,7 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
                     send_session->last_packet_acked);
             packet = packet_message_builder(&packet_header, filebuf,
                                             read_packet_size);
-            send_packet(ip_port->ip, ip_port->port, packet, job->mysock);
+            send_packet(ip_port->ip, ip_port->port, packet, mysock);
             fprintf(stdout, "Sent a packet of size %ud \n", read_packet_size);
             send_session->last_packet_sent++;
             send_session->sent_bytes += read_packet_size;
@@ -542,10 +542,11 @@ void ack_recv_data_packet(udp_recv_session *recv_session, job_t *job,
 /**
  * move forward the sending window through sending more packets if any
  * @param send_session
- * @param job
+ * @param send_data_session
  * @param input
  */
-void move_send_window_forward(udp_session *send_session, job_t *job,
+void move_send_window_forward(udp_session *send_session,
+                              send_data_sessions *send_data_session,
                               handler_input *input){
     ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
 
@@ -554,9 +555,10 @@ void move_send_window_forward(udp_session *send_session, job_t *job,
     send_session->dup_ack = 0;
     if (send_session->sent_bytes >= CHUNK_LEN &&
             send_session->last_packet_acked == send_session->last_packet_sent){
-        vec_delete(job->send_sessions, send_session);
+        vec_delete(&send_data_session->send_sessions, send_session);
     }else{
-        send_udp_packet_reliable(send_session, ip_port, job);
+        send_udp_packet_reliable(send_session, ip_port,
+                                 send_data_session->mysock);
     }
 
     return;
@@ -589,10 +591,10 @@ void remove_acked_packet_timers(udp_session *send_session, size_t ackNo){
  * repeat a sent udp packet
  * @param send_session
  * @param input
- * @param job
+ * @param mysock
  */
 void repeat_udp_packet_reliable(udp_session *send_session, handler_input
-*input, job_t *job){
+*input, int mysock){
     char *filebuf[UDP_MAX_PACK_SIZE];
     uint32_t read_packet_size, full_body_size, bytes_to_send, left_bytes;
     packet_h packet_header;
@@ -620,7 +622,7 @@ void repeat_udp_packet_reliable(udp_session *send_session, handler_input
                             send_session->last_packet_acked);
         packet = packet_message_builder(&packet_header, filebuf,
                                         read_packet_size);
-        send_packet(ip_port->ip, ip_port->port, packet, job->mysock);
+        send_packet(ip_port->ip, ip_port->port, packet, mysock);
         fprintf(stdout, "Sent a repeating packet of packet number %ud\n", i);
         free(packet);
 
@@ -637,19 +639,22 @@ void repeat_udp_packet_reliable(udp_session *send_session, handler_input
  * handle received duplicate ACK handle. Initiate crash recovery if necessary
  * @param send_session
  * @param input
- * @param job
+ * @param send_data_session
  */
 void handle_duplicate_ack_packet(udp_session *send_session, handler_input *
-input, job_t *job){
+input, send_data_sessions *send_data_session){
     ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
     send_session->dup_ack++;
     delete_timer_of_ackNo(&send_session->sent_packet_timers, ip_port->ip, ip_port->port,
                           send_session->last_packet_acked);
 
     if (send_session->dup_ack > MAXIMUM_DUP_ACK){
-        recover_from_crashed_peer(send_session, job);
+        fprintf(stderr, "One peer has crashed with ip %s, port: %d\n",
+                send_session->ip, send_session->port);
+        //recover_from_crashed_peer(send_session, send_data_session);
     }else{
-        repeat_udp_packet_reliable(send_session, input, job);
+        repeat_udp_packet_reliable(send_session, input,
+                                   send_data_session->mysock);
     }
 
     return;

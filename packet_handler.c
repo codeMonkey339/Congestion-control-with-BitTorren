@@ -382,7 +382,8 @@ void send_denied_packet(ip_port_t *ip_port, job_t *job) {
  * @param input
  * @param send_data_sessions
  */
-void process_get_packet(handler_input *input, vector *send_data_sessions) {
+void process_get_packet(handler_input *input,
+                        send_data_sessions *send_data_sessions) {
     udp_session *send_session = NULL;
     char *requested_chunk_hash;
     size_t chunk_idx;
@@ -392,7 +393,8 @@ void process_get_packet(handler_input *input, vector *send_data_sessions) {
     requested_chunk_hash = parse_get_packet(input->body_buf, input->buf_len);
     chunk_idx = find_chunk_idx_from_hash(requested_chunk_hash,
                                          send_data_sessions->master_chunk_file);
-    if (find_session(ip_port->ip, ip_port->port, send_data_sessions->send_sessions) == NULL) {
+    if (find_session(ip_port->ip, ip_port->port,
+                     &send_data_sessions->send_sessions) == NULL) {
         send_session = create_new_session();
         init_send_session(send_session, send_data_sessions, ip_port, chunk_idx);
     } else {
@@ -403,7 +405,7 @@ void process_get_packet(handler_input *input, vector *send_data_sessions) {
     verify_chunk_hash(send_session->f, requested_chunk_hash, chunk_idx);
     send_udp_packet_reliable(send_session, ip_port, send_data_sessions);
 
-    vec_add(send_data_sessions->send_sessions, send_session);
+    vec_add(&send_data_sessions->send_sessions, send_session);
     free(send_session);
     free(requested_chunk_hash);
     return;
@@ -480,13 +482,14 @@ void update_owned_chunks(job_t *job, char *chunk_hash){
 /**
  * process incoming ACK packet
  * @param input
- * @param job
+ * @param send_data_session
  */
-void process_ack_packet(handler_input *input, job_t *job) {
+void process_ack_packet(handler_input *input,
+                        send_data_sessions *send_data_session) {
     packet_h *header = input->header;
     ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
     udp_session *send_session = find_session(ip_port->ip, ip_port->port,
-                                             job->send_sessions);
+                                             &send_data_session->send_sessions);
 
     if (send_session == NULL) {
         fprintf(stderr, "Received a stry ACK packet from ip: %s, port %d\n",
@@ -496,9 +499,9 @@ void process_ack_packet(handler_input *input, job_t *job) {
 
     /* cumulative acknowledgement could happen*/
     if (header->ackNo >= (send_session->last_packet_acked + 1)) {
-        move_send_window_forward(send_session, job, input);
+        move_send_window_forward(send_session, send_data_session, input);
     } else if (header->ackNo == send_session->last_packet_sent) {
-        handle_duplicate_ack_packet(send_session, input, job);
+        handle_duplicate_ack_packet(send_session, input, send_data_session);
     } else {
         fprintf(stderr, "Received a stray ACK packet \n");
     }

@@ -97,7 +97,7 @@ void init_send_session(udp_session *send_session, job_t *job, ip_port_t *
 ip_port, size_t chunk_idx);
 
 void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
-                              job_t *job);
+                              int mysock);
 
 udp_recv_session *find_recv_session(vector *recv_sessions, char *ip, int
 port);
@@ -113,11 +113,12 @@ recv_session);
 void ack_recv_data_packet(udp_recv_session *recv_session, job_t *job,
                           handler_input *input);
 
-void move_send_window_forward(udp_session *send_session, job_t *job,
+void move_send_window_forward(udp_session *send_session,
+                              send_data_sessions *send_data_session,
                               handler_input *input);
 
 void handle_duplicate_ack_packet(udp_session *send_session, handler_input *
-input, job_t *job);
+input, send_data_sessions *send_data_session);
 void copy_recv_packet_2_buf(udp_recv_session *recv_session, handler_input
 *input);
 

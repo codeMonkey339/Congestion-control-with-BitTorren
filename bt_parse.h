@@ -54,8 +54,8 @@ struct bt_config_s {
     bt_peer_t *peers;
     /* the current job that is executing */
     void *job;
-    /* udp_recv_sessions holding incoming DATA requests */
-    vector *send_data_sessions;
+    /* the passive sessions that send DATA packets */
+    void *send_data_session;
 };
 typedef struct bt_config_s bt_config_t;
 

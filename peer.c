@@ -95,13 +95,13 @@ void process_inbound_udp(int sock, bt_config_t *config) {
     } else if (header->packType == IHAVE) {
         process_ihave_packet(input, config->job);
     } else if (header->packType == GET) {
-        //todo: need to update this function
-        process_get_packet(input, config->send_data_sessions);
+        process_get_packet(input, (send_data_sessions*)
+                (config->send_data_session));
     } else if (header->packType == DATA) {
         process_data_packet(input, config->job);
     } else if (header->packType == DENIED) {
-        //todo: need to update this function as well
-        process_ack_packet(input, config->job);
+        process_ack_packet(input, (send_data_sessions*)
+                (config->send_data_session));
     } else if (header->packType == 5) {
         //todo: denied packet
     } else {
