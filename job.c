@@ -33,6 +33,7 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     get_masterfile(job->master_data_file, job->master_chunk_file);
     job->mysock = config->mysock;
     job->identity = config->identity;
+    job->peers = &config->peer->peer;
     init_vector(&v1, CHUNK_HASH_SIZE);
     init_vector(&v2, CHUNK_HASH_SIZE);
     init_vector(job->chunks_to_download, sizeof(chunk_to_download));
@@ -257,8 +258,9 @@ request_t *build_request(char *chunk_hash, size_t peer_id, vector *peers){
     peer_info_t *peer_info = get_peer_info_from_id(peers, peer_id);
     strcpy(req->ip, peer_info->ip);
     req->port = peer_info->port;
-    strcpy(req->chunk, get_query);
+    strcpy(req->chunk, get_query->body);
 
+    free(get_query->body);
     free(get_query);
-    return  get_query;
+    return req;
 }

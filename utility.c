@@ -141,7 +141,7 @@ vector *vec_common(vector *v1, vector *v2){
     void *ele1 = vec_get(v1, i);
     for (int j = 0; j < v2->len; j++){
       void *ele2 = vec_get(v2, j);
-      if (!memcmp(ele1, ele2, v1->ele_size)){
+      if (!memcmp(ele1, ele2, strlen(ele1))){
         vec_add(res, ele1);
         break;
       }

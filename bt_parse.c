@@ -70,6 +70,7 @@ bt_peer_t *bt_peer_info(const bt_config_t *config, int peer_id)
  * @param config
  */
 void init_send_data_sessions(bt_config_t *config){
+    config->send_data_session = Malloc(sizeof(send_data_sessions));
     send_data_sessions *send_data_sessions = config->send_data_session;
     send_data_sessions->mysock = config->mysock;
     strcpy(send_data_sessions->master_chunk_file, config->chunk_file);

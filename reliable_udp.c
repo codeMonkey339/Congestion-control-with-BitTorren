@@ -246,14 +246,14 @@ void build_packet(packet_h *header, char *query, char *msg, size_t query_len) {
  * @param recv_session
  * @param peer_id
  * @param chunk_hash
- * @param job
+ * @param peers
  */
 void build_udp_recv_session(udp_recv_session *recv_session, int peer_id, char
-*chunk_hash, job_t *job) {
+*chunk_hash, vector *peers) {
     memset(recv_session, 0, sizeof(udp_recv_session));
     memset(recv_session->chunk_hash, 0, CHUNK_HASH_SIZE);
 
-    peer_info_t *peer_info = get_peer_info_from_id(job->peers, peer_id);
+    peer_info_t *peer_info = get_peer_info_from_id(peers, peer_id);
     recv_session->last_packet_acked = 0;
     recv_session->last_acceptable_frame = recv_session->last_packet_acked +
                                           DEFAULT_WINDOW_SIZE;

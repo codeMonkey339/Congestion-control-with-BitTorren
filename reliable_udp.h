@@ -87,7 +87,7 @@ int check_data_complete(vector *recv_sessions, vector *queued_requests,
                         vector *data);
 
 void build_udp_recv_session(udp_recv_session *recv_session, int peer_id, char
-*chunk_hash, job_t *job);
+*chunk_hash, vector *peers);
 
 udp_session *find_session(char *from_ip, short from_sock, vector *sessions);
 

@@ -84,10 +84,10 @@ void parse_whohas_packet(char *buf, vector *v) {
  * @return a string contains the reply IHAVE message
  */
 char *build_ihave_reply(vector *common_hashes) {
-    char *res = (char *) malloc(strlen("WHOHAS ") + common_hashes->len *
+    char *res = (char *) malloc(strlen("IHAVE ") + common_hashes->len *
                                                     CHUNK_HASH_SIZE);
-    strcpy(res, "WHOHAS ");
-    vec_copy2_str(res + strlen(res), common_hashes);
+    sprintf(res, "%s %d ", "IHAVE", common_hashes->len);
+    vec_copy2_str(common_hashes, res + strlen(res));
     return res;
 }
 
@@ -114,6 +114,7 @@ void process_whohas_packet(handler_input *input, char *has_chunk_file) {
             (reply));
     send_packet(ip_port->ip, ip_port->port, packet, input->incoming_socket);
 
+    free(common_hashes);
     free(reply);
     free(packet);
     free(ip_port);
