@@ -89,7 +89,8 @@ void process_inbound_udp(int sock, bt_config_t *config) {
     }
     handler_input *input = build_handler_input(sock, buf + header->headerLen,
                                                &from, fromlen, BUFLEN,
-                                               recv_size, header);
+                                               recv_size, header,
+                                               &config->peer->peer);
     if (header->packType == WHOHAS) {
         process_whohas_packet(input, config->has_chunk_file);
     } else if (header->packType == IHAVE) {
@@ -110,6 +111,7 @@ void process_inbound_udp(int sock, bt_config_t *config) {
     //todo: need to release correctly
     free(buf_backup_ptr);
     free(header);
+    free(input->ip_port);
     free(input);
     return;
 }

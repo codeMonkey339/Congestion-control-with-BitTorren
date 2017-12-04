@@ -204,7 +204,7 @@ void verify_chunk_hash(FILE *f, char *requested_chunk_hash, size_t chunk_idx){
 	char *buffer = Malloc(CHUNK_LEN);
 	fread(buffer, 1, CHUNK_LEN, f);
 	char *calculated_chunk_hash = get_chunk_hash(buffer, CHUNK_LEN);
-	if (strcmp(calculated_chunk_hash, requested_chunk_hash)){
+	if (strncmp(calculated_chunk_hash, requested_chunk_hash, strlen(calculated_chunk_hash))){
 		fprintf(stderr, "Unmatched chunk hashes, requested hash %, calculated"
 				" hash %s\n", requested_chunk_hash, calculated_chunk_hash);
 		exit(-1);

@@ -93,8 +93,10 @@ udp_session *find_session(char *from_ip, short from_sock, vector *sessions);
 
 udp_session *create_new_session();
 
-void init_send_session(udp_session *send_session, job_t *job, ip_port_t *
-ip_port, size_t chunk_idx);
+void init_send_session(udp_session *send_session,
+                       send_data_sessions *send_data_session,
+                       ip_port_t *ip_port, size_t chunk_idx,
+                       handler_input *input);
 
 void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
                               int mysock);

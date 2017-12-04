@@ -45,9 +45,10 @@ char *build_whohas_query(vector *chunks_to_download) {
  * @return
  */
 handler_input *build_handler_input(int incoming_socket, char *body_buf,
-                                   struct socket_in *from_ip, socklen_t
-                                   from_len, int buf_len, int
-                                   recv_size, packet_h *header) {
+                                   struct socket_in *from_ip,
+                                   socklen_t from_len, int buf_len,
+                                   int recv_size, packet_h *header,
+                                   vector *peers) {
     handler_input *res = (handler_input *) malloc(sizeof(handler_input));
     res->incoming_socket = incoming_socket;
     res->body_buf = body_buf;
@@ -56,6 +57,8 @@ handler_input *build_handler_input(int incoming_socket, char *body_buf,
     res->buf_len = buf_len;
     res->recv_size = recv_size;
     res->header = header;
+    res->ip_port = parse_peer_ip_port(from_ip);
+    res->peer_id = get_peer_id(res->ip_port, peers);
     return res;
 }
 
@@ -230,7 +233,8 @@ packet_b *build_get_request_body(char *chunk_hash) {
     size_t body_len = strlen("GET") + CHUNK_HASH_SIZE + 2;
     char *body = (char *) Malloc(body_len);
 
-    memset(packet_body, 0, body_len);
+    memset(packet_body, 0, sizeof(packet_b));
+    memset(body, 0, body_len);
     strcat(body, "GET ");
     strcat(body, chunk_hash);
     packet_body->body = body;
@@ -388,7 +392,7 @@ void process_get_packet(handler_input *input,
     udp_session *send_session = NULL;
     char *requested_chunk_hash;
     size_t chunk_idx;
-    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+    ip_port_t *ip_port = input->ip_port;
 
 
     requested_chunk_hash = parse_get_packet(input->body_buf, input->buf_len);
@@ -397,14 +401,15 @@ void process_get_packet(handler_input *input,
     if (find_session(ip_port->ip, ip_port->port,
                      &send_data_sessions->send_sessions) == NULL) {
         send_session = create_new_session();
-        init_send_session(send_session, send_data_sessions, ip_port, chunk_idx);
+        init_send_session(send_session, send_data_sessions, ip_port, chunk_idx,
+                          input);
     } else {
         send_denied_packet(ip_port, send_data_sessions);
         return;
     }
 
     verify_chunk_hash(send_session->f, requested_chunk_hash, chunk_idx);
-    send_udp_packet_reliable(send_session, ip_port, send_data_sessions);
+    send_udp_packet_reliable(send_session, ip_port, send_data_sessions->mysock);
 
     vec_add(&send_data_sessions->send_sessions, send_session);
     free(send_session);

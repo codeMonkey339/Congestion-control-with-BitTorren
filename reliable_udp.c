@@ -307,16 +307,18 @@ udp_session *create_new_session() {
 /**
  * initialize the udp_sesession
  * @param send_session
- * @param job
+ * @param send_data_session
  * @param ip_port
  */
-void init_send_session(udp_session *send_session, job_t *job, ip_port_t *
-ip_port, size_t chunk_idx) {
+void init_send_session(udp_session *send_session,
+                       send_data_sessions *send_data_session,
+                       ip_port_t *ip_port, size_t chunk_idx,
+                       handler_input *input) {
     send_session->last_packet_sent = 0;
     send_session->last_packet_acked = 0;
-    send_session->peer_id = get_peer_id(ip_port, job->peers);
+    send_session->peer_id = input->peer_id;
     send_session->dup_ack = 0;
-    send_session->f = Fopen(job->master_data_file, "r");
+    send_session->f = Fopen(send_data_session->master_data_file, "r");
     strcpy(send_session->ip, ip_port->ip);
     send_session->port = ip_port->port;
     send_session->sent_bytes = 0;

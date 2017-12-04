@@ -72,8 +72,10 @@ bt_peer_t *bt_peer_info(const bt_config_t *config, int peer_id)
 void init_send_data_sessions(bt_config_t *config){
     config->send_data_session = Malloc(sizeof(send_data_sessions));
     send_data_sessions *send_data_sessions = config->send_data_session;
-    send_data_sessions->mysock = config->mysock;
+    send_data_sessions->mysock = config->myport;
     strcpy(send_data_sessions->master_chunk_file, config->chunk_file);
+    get_masterfile(send_data_sessions->master_data_file,
+                   config->chunk_file);
     init_vector(&send_data_sessions->send_sessions, sizeof(udp_recv_session));
 
     return;
@@ -127,7 +129,6 @@ void bt_parse_command_line(bt_config_t *config) {
   }
 
   bt_parse_peer_list(config);
-  init_send_data_sessions(config);
   if (config->identity == 0) {
     fprintf(stderr, "bt_parse error:  Node identity must not be zero!\n");
     exit(-1);
@@ -141,6 +142,7 @@ void bt_parse_command_line(bt_config_t *config) {
   assert(config->identity != 0);
   assert(strlen(config->chunk_file) != 0);
   assert(strlen(config->has_chunk_file) != 0);
+  init_send_data_sessions(config);
 
   optind = old_optind;
 }

@@ -25,6 +25,8 @@ typedef struct handler_input{
     /* total length received from socket */
     int recv_size;
     packet_h *header;
+    ip_port_t *ip_port;
+    size_t peer_id;
 }handler_input;
 
 typedef struct ihave{
@@ -36,9 +38,10 @@ typedef struct ihave{
 
 char *build_whohas_query(vector *chunks_to_download);
 handler_input *build_handler_input(int incoming_socket, char *body_buf,
-                                   struct socket_in *from_ip, socklen_t
-                                   from_len, int buf_len, int
-                                   recv_size, packet_h *header);
+                                   struct socket_in *from_ip,
+                                   socklen_t from_len, int buf_len,
+                                   int recv_size, packet_h *header,
+                                   vector *peers);
 
 void parse_whohas_packet(char *buf, vector *v);
 void process_whohas_packet(handler_input *input, char *has_chunk_file);

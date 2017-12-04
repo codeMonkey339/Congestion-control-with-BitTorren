@@ -45,6 +45,7 @@ typedef struct job_t{
 typedef struct send_data_sessions{
     vector send_sessions;
     char master_chunk_file[BT_FILENAME_LEN];
+    char master_data_file[BT_FILENAME_LEN];
     int mysock;
 }send_data_sessions;
 
