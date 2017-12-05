@@ -409,7 +409,7 @@ void process_get_packet(handler_input *input,
     }
 
     verify_chunk_hash(send_session->f, requested_chunk_hash, chunk_idx);
-    send_udp_packet_reliable(send_session, ip_port, send_data_sessions->mysock);
+    send_udp_packet_reliable(send_session, ip_port, input->incoming_socket);
 
     vec_add(&send_data_sessions->send_sessions, send_session);
     free(send_session);
