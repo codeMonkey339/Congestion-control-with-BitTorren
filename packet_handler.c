@@ -355,15 +355,17 @@ void process_ihave_packet(handler_input *input, job_t *job) {
  * @return
  */
 char *parse_get_packet(char *buf, size_t buf_len) {
-    char *buf_backup = Malloc(buf_len);
-    char *chunk_hash;
+  char *buf_backup = Malloc(buf_len), *chunk_hash_buf, *chunk_hash;
 
     memset(buf_backup, 0, buf_len);
     strcpy(buf_backup, buf);
     chunk_hash = strtok(buf_backup, " ");
     chunk_hash = strtok(NULL, " ");
+    chunk_hash_buf = (char*)Malloc(strlen(chunk_hash));
+    strcpy(chunk_hash_buf, chunk_hash);
 
-    return chunk_hash;
+    free(buf_backup);
+    return chunk_hash_buf;
 }
 
 
@@ -428,7 +430,7 @@ void process_data_packet(handler_input *input, job_t *job) {
     ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
 
     if ((recv_session = find_recv_session(job->recv_sessions, ip_port->ip,
-                                          ip_port->port))) {
+                                          ip_port->port)) == NULL) {
         fprintf(stderr, "Cannot find recv session from ip: %s and port: "
                 "%d\n", ip_port->ip, ip_port->port);
         return;

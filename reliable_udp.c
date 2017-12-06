@@ -259,6 +259,7 @@ void build_udp_recv_session(udp_recv_session *recv_session, int peer_id, char
                                           DEFAULT_WINDOW_SIZE;
     recv_session->peer_id = peer_id;
     recv_session->sock = peer_info->port;
+    strcpy(recv_session->ip, peer_info->ip);
     strcpy(recv_session->chunk_hash, chunk_hash);
     recv_session->data = (char *) Malloc(CHUNK_LEN);
     recv_session->data_complete = 0;
@@ -411,7 +412,7 @@ int cumulative_ack(udp_recv_session *session, handler_input *input,
     size_t index;
     size_t arr_size =
             sizeof(session->recved_flags) / sizeof(session->recved_flags[0]);
-    copy_recv_packet_2_buf(session, index);
+    copy_recv_packet_2_buf(session, input);
     for (index = 0; index < arr_size; index++) {
         if (session->recved_flags[index] == 0) {
             break;
@@ -442,9 +443,10 @@ void copy_recv_packet_2_buf(udp_recv_session *recv_session, handler_input
     size_t full_packet_len = UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN;
     if ((recv_session->last_packet_acked < seqNo) &&
             (recv_session->last_acceptable_frame >= seqNo)){
-        memcpy(recv_session->data, full_packet_len * (seqNo - 1),
-               input->body_buf);
-        recv_session->buf_size += input->buf_len;
+        memcpy(recv_session->data + full_packet_len * (seqNo - 1),
+               input->body_buf,
+               input->header->packLen);
+        recv_session->buf_size += input->header->packLen;
         recv_session->recved_flags[seqNo - recv_session->last_packet_acked -1]
                 = 1;
     }
