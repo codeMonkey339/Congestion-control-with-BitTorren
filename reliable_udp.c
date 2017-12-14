@@ -561,8 +561,7 @@ void move_send_window_forward(udp_session *send_session,
             send_session->last_packet_acked == send_session->last_packet_sent){
         vec_delete(&send_data_session->send_sessions, send_session);
     }else{
-        send_udp_packet_reliable(send_session, ip_port,
-                                 send_data_session->mysock);
+        send_udp_packet_reliable(send_session, ip_port, input->incoming_socket);
     }
 
     return;

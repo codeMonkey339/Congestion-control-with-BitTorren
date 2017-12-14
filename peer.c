@@ -100,7 +100,7 @@ void process_inbound_udp(int sock, bt_config_t *config) {
                 (config->send_data_session));
     } else if (header->packType == DATA) {
         process_data_packet(input, config->job);
-    } else if (header->packType == DENIED) {
+    } else if (header->packType == ACK) {
         process_ack_packet(input, (send_data_sessions*)
                 (config->send_data_session));
     } else if (header->packType == 5) {
