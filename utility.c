@@ -187,17 +187,17 @@ int read_from_sock(int sock, char *buf, int BUFLEN){
  */
 void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf,
                size_t buf_len) {
-    timer *cur_timer = (timer *) Malloc(CHUNK_LEN);
+    timer *cur_timer = (timer *) Malloc(sizeof(timer));
     cur_timer->start = clock();
     cur_timer->repeat_times = 0;
     strcpy(cur_timer->ip, ip);
     cur_timer->sock = sock;
 
-    if (header == NULL) {
+    if (header != NULL) {
         cur_timer->header = Malloc(sizeof(packet_h));
         memcpy(cur_timer->header, header, sizeof(packet_h));
     }
-    if (filebuf == NULL){
+    if (filebuf != NULL){
         cur_timer->body = Malloc(buf_len);
         memcpy(cur_timer->body, filebuf, buf_len);
     }
