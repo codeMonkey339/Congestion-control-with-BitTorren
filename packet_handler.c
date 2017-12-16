@@ -481,8 +481,7 @@ void update_owned_chunks(job_t *job, char *chunk_hash){
     FILE *f = Fopen(job->has_chunk_file, "a");
 
     memset(updated_chunk_entry, 0, CHUNK_HASH_SIZE + 3);
-    sprintf("%d %s\n", chunk_id, chunk_hash);
-    fwrite(updated_chunk_entry, 1, strlen(updated_chunk_entry), f);
+    fprintf(f, "%d %s\n", chunk_id, chunk_hash);
     fclose(f);
     return;
 }

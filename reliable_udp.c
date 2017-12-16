@@ -506,7 +506,7 @@ void process_queued_up_requests(vector *queued_requests, udp_recv_session
 void free_udp_recv_session(vector *recv_sessions, udp_recv_session *
 recv_session){
     free(recv_session->data);
-    vec_delete(recv_session, recv_session);
+    vec_delete(recv_sessions, recv_session);
 
     return;
 }
