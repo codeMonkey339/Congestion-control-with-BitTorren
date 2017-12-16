@@ -444,7 +444,7 @@ void process_data_packet(handler_input *input, job_t *job) {
 
     ack_recv_data_packet(recv_session, job, input);
 
-    if (input->buf_len < UDP_MAX_PACK_SIZE) {
+    if (input->recv_size < UDP_MAX_PACK_SIZE) {
         if (!verify_hash(recv_session->chunk_hash, recv_session->data)) {
             int chunk_to_download_id = get_chunk_to_download_id
                     (recv_session->chunk_hash, job->chunks_to_download);

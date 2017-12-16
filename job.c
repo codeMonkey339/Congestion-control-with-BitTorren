@@ -177,7 +177,7 @@ int get_chunk_to_download_id(char *chunk_hash, vector *chunks_to_download){
 int verify_hash(char *chunk_hash, char *data){
     char *calculated_chunk_hash = get_chunk_hash(data, CHUNK_LEN);
 
-    if (!strcmp(chunk_hash, calculated_chunk_hash)){
+    if (!strncmp(chunk_hash, calculated_chunk_hash, strlen(calculated_chunk_hash))){
         free(calculated_chunk_hash);
         return 0;
     }else{
