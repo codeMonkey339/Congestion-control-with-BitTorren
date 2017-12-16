@@ -76,7 +76,7 @@ void init_send_data_sessions(bt_config_t *config){
     strcpy(send_data_sessions->master_chunk_file, config->chunk_file);
     get_masterfile(send_data_sessions->master_data_file,
                    config->chunk_file);
-    init_vector(&send_data_sessions->send_sessions, sizeof(udp_recv_session));
+    init_vector(&send_data_sessions->send_sessions, sizeof(udp_session));
 
     return;
 }

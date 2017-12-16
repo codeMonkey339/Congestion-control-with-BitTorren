@@ -557,9 +557,12 @@ void move_send_window_forward(udp_session *send_session,
     remove_acked_packet_timers(send_session, input->header->ackNo);
     send_session->last_packet_acked = input->header->ackNo;
     send_session->dup_ack = 0;
-    if (send_session->sent_bytes >= CHUNK_LEN &&
-            send_session->last_packet_acked == send_session->last_packet_sent){
-        vec_delete(&send_data_session->send_sessions, send_session);
+    if (send_session->sent_bytes >= CHUNK_LEN){
+        if (send_session->last_packet_acked == send_session->last_packet_sent){
+            fprintf(stdout, "Sent and received ack for all %d packets\n",
+                    send_session->last_packet_sent);
+            vec_delete(&send_data_session->send_sessions, send_session);
+        }
     }else{
         send_udp_packet_reliable(send_session, ip_port, input->incoming_socket);
     }
