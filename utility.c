@@ -259,7 +259,7 @@ void test_vec(){
  */
 FILE *Fopen(char *filename, char *mode){
     FILE *f;
-    if ((f = fopen(filename, "r")) == NULL){
+    if ((f = fopen(filename, mode)) == NULL){
         fprintf(stderr, "Failed to open file %s \n", filename);
         exit(-1);
     }

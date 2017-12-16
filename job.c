@@ -225,7 +225,7 @@ void write_data_outputfile(job_t *job, char *outputfile){
         }
         fwrite(chunk->chunk, 1, CHUNK_LEN, newfile);
     }
-
+    fclose(newfile);
     return;
 }
 
