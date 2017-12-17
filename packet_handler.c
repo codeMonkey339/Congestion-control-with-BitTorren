@@ -45,14 +45,14 @@ char *build_whohas_query(vector *chunks_to_download) {
  * @return
  */
 handler_input *build_handler_input(int incoming_socket, char *body_buf,
-                                   struct socket_in *from_ip,
+                                   struct sockaddr_in *from_ip,
                                    socklen_t from_len, int buf_len,
                                    int recv_size, packet_h *header,
                                    vector *peers) {
     handler_input *res = (handler_input *) malloc(sizeof(handler_input));
     res->incoming_socket = incoming_socket;
     res->body_buf = body_buf;
-    res->from_ip = from_ip;
+    memcpy(&res->from_ip, from_ip, sizeof(struct sockaddr_in));
     res->from_len = from_len;
     res->buf_len = buf_len;
     res->recv_size = recv_size;
@@ -112,7 +112,7 @@ void process_whohas_packet(handler_input *input, char *has_chunk_file) {
     reply = build_ihave_reply(common_hashes);
     build_packet_header(&reply_header, 15441, 1, 1, PACK_HEADER_BASE_LEN,
                         PACK_HEADER_BASE_LEN + strlen(reply), 0, 0);
-    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+    ip_port_t *ip_port = parse_peer_ip_port(&input->from_ip);
     packet_m *packet = packet_message_builder(&reply_header, reply, strlen
             (reply));
     send_packet(ip_port->ip, ip_port->port, packet, input->incoming_socket);
@@ -137,7 +137,7 @@ ihave_t *parse_ihave_packet(handler_input *input, vector *peers) {
     char *buf_backup = Malloc(buf_len), *token;
     ihave_t *ihave_res = Malloc(sizeof(ihave_t));
     size_t ihave_msg_nums;
-    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+    ip_port_t *ip_port = parse_peer_ip_port(&input->from_ip);
     size_t idx = get_peer_id(ip_port, peers);
 
     memcpy(buf_backup, buf, buf_len);
@@ -427,7 +427,7 @@ void process_get_packet(handler_input *input,
 void process_data_packet(handler_input *input, job_t *job) {
     udp_recv_session *recv_session;
     packet_h *recv_header = input->header;
-    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+    ip_port_t *ip_port = parse_peer_ip_port(&input->from_ip);
 
     if ((recv_session = find_recv_session(job->recv_sessions, ip_port->ip,
                                           ip_port->port)) == NULL) {
@@ -497,7 +497,7 @@ void update_owned_chunks(job_t *job, char *chunk_hash){
 void process_ack_packet(handler_input *input,
                         send_data_sessions *send_data_session) {
     packet_h *header = input->header;
-    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+    ip_port_t *ip_port = parse_peer_ip_port(&input->from_ip);
     udp_session *send_session = find_session(ip_port->ip, ip_port->port,
                                              &send_data_session->send_sessions);
 

@@ -17,7 +17,7 @@ typedef struct handler_input{
     /* buffer contains packet body */
     char *body_buf;
     /* the incoming packet ip */
-    struct socket_in *from_ip;
+    struct sockaddr_in from_ip;
     /* the incoming packet length */
     socklen_t from_len;
     /* the total length of buffer (header + body)*/
@@ -38,7 +38,7 @@ typedef struct ihave{
 
 char *build_whohas_query(vector *chunks_to_download);
 handler_input *build_handler_input(int incoming_socket, char *body_buf,
-                                   struct socket_in *from_ip,
+                                   struct sockaddr_in *from_ip,
                                    socklen_t from_len, int buf_len,
                                    int recv_size, packet_h *header,
                                    vector *peers);

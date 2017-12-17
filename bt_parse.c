@@ -139,6 +139,7 @@ void bt_parse_command_line(bt_config_t *config) {
     exit(-1);
   }
   config->myport = ntohs(p->addr.sin_port);
+  memcpy(&config->myaddr, &p->addr.sin_addr, sizeof(struct in_addr));
   assert(config->identity != 0);
   assert(strlen(config->chunk_file) != 0);
   assert(strlen(config->has_chunk_file) != 0);
@@ -170,6 +171,7 @@ void bt_parse_peer_list(bt_config_t *config) {
 
     host = gethostbyname(hostname);
     assert(host != NULL);
+    /* s_addr is already in network byteorder */
     node->addr.sin_addr.s_addr = *(in_addr_t *)host->h_addr;
     node->addr.sin_family = AF_INET;
     node->addr.sin_port = htons(port);

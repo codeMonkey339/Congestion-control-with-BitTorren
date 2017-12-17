@@ -43,6 +43,7 @@ struct bt_config_s {
     short identity;
     /* port of the current peer, read from nodes.map?*/
     unsigned short myport;
+    struct in_addr myaddr;
     /* socket of the currentpeer, write through this port */
     int mysock;
 

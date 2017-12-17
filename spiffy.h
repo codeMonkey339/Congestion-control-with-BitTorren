@@ -9,8 +9,8 @@ struct spiffy_header_s {
 	int ID;
 	int lSrcAddr;
 	int lDestAddr;
-	short lSrcPort;
-	short lDestPort;
+	uint16_t lSrcPort;
+	uint16_t lDestPort;
 };
 typedef struct spiffy_header_s spiffy_header;
 

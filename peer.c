@@ -81,7 +81,6 @@ void process_inbound_udp(int sock, bt_config_t *config) {
             &from, &fromlen);
     buf_backup = (char *) Malloc(BUFLEN);
     memcpy(buf_backup, buf, BUFLEN);
-    //todo: need to parse sniffy packet header if enabled
     buf_backup_ptr = buf_backup;
     packet_h *header = parse_packet(&buf_backup);
     if (header == NULL) {
@@ -245,6 +244,7 @@ void release_all_peers(bt_config_t *config) {
 void peer_run(bt_config_t *config) {
     int sock;
     struct sockaddr_in myaddr;
+    struct in_addr *inp;
     fd_set readfds;
     struct user_iobuf *userbuf;
 
@@ -274,6 +274,8 @@ void peer_run(bt_config_t *config) {
         fprintf(stderr, "Error loading peers from peer file \n");
         exit(1);
     }
+
+    myaddr.sin_addr.s_addr = config->myaddr.s_addr;
     spiffy_init(config->identity, (struct sockaddr *) &myaddr, sizeof(myaddr));
 
     while (1) {

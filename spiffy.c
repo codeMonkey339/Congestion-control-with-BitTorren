@@ -9,7 +9,7 @@
 #include "spiffy.h"
 
 long glSrcAddr = 0;
-short gsSrcPort = 0;
+uint16_t gsSrcPort = 0;
 int giSpiffyEnabled = 0;
 long glNodeID = 0;
 struct sockaddr_in gsSpiffyRouter;

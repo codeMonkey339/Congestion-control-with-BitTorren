@@ -378,7 +378,7 @@ void ack_recv_data_packet(udp_recv_session *recv_session, job_t *job,
                           handler_input *input){
     size_t packet_num_acked, peer_id;
     packet_h reply_header, *recv_header = input->header;
-    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+    ip_port_t *ip_port = parse_peer_ip_port(&input->from_ip);
     packet_m *packet;
 
     if ((recv_session->last_packet_acked + 1) == recv_header->seqNo){
@@ -408,7 +408,7 @@ void ack_recv_data_packet(udp_recv_session *recv_session, job_t *job,
 void move_send_window_forward(udp_session *send_session,
                               send_data_sessions *send_data_session,
                               handler_input *input){
-    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+    ip_port_t *ip_port = parse_peer_ip_port(&input->from_ip);
 
     remove_acked_packet_timers(send_session, input->header->ackNo);
     send_session->last_packet_acked = input->header->ackNo;
@@ -461,7 +461,7 @@ void repeat_udp_packet_reliable(udp_session *send_session, handler_input
     uint32_t read_packet_size, full_body_size, bytes_to_send, left_bytes;
     packet_h packet_header;
     packet_m *packet;
-    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+    ip_port_t *ip_port = parse_peer_ip_port(&input->from_ip);
 
     memset(filebuf, 0, UDP_MAX_PACK_SIZE);
     memset(&packet_header, 0, sizeof(packet_h));
@@ -505,7 +505,7 @@ void repeat_udp_packet_reliable(udp_session *send_session, handler_input
  */
 void handle_duplicate_ack_packet(udp_session *send_session, handler_input *
 input, send_data_sessions *send_data_session){
-    ip_port_t *ip_port = parse_peer_ip_port(input->from_ip);
+    ip_port_t *ip_port = parse_peer_ip_port(&input->from_ip);
     send_session->dup_ack++;
     delete_timer_of_ackNo(&send_session->sent_packet_timers, ip_port->ip, ip_port->port,
                           send_session->last_packet_acked);
