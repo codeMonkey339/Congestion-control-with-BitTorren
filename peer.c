@@ -81,6 +81,7 @@ void process_inbound_udp(int sock, bt_config_t *config) {
             &from, &fromlen);
     buf_backup = (char *) Malloc(BUFLEN);
     memcpy(buf_backup, buf, BUFLEN);
+    //todo: need to parse sniffy packet header if enabled
     buf_backup_ptr = buf_backup;
     packet_h *header = parse_packet(&buf_backup);
     if (header == NULL) {

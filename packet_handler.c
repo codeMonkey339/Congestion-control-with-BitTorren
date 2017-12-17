@@ -480,6 +480,9 @@ void update_owned_chunks(job_t *job, char *chunk_hash){
     char updated_chunk_entry[CHUNK_HASH_SIZE + 3];
     FILE *f = Fopen(job->has_chunk_file, "a");
 
+    /* the same chunk won't get copies twice in one job, so there is no need
+     * to check redundancy here
+     */
     memset(updated_chunk_entry, 0, CHUNK_HASH_SIZE + 3);
     fprintf(f, "%d %s\n", chunk_id, chunk_hash);
     fclose(f);
@@ -499,7 +502,7 @@ void process_ack_packet(handler_input *input,
                                              &send_data_session->send_sessions);
 
     if (send_session == NULL) {
-        fprintf(stderr, "Received a stry ACK packet from ip: %s, port %d\n",
+        fprintf(stderr, "Received a stray ACK packet from ip: %s, port %d\n",
                 ip_port->ip, ip_port->port);
         return;
     }

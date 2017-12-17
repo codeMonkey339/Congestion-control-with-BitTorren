@@ -11,41 +11,8 @@
 #include "job.h"
 #include "chunk.h"
 #include "packet_handler.h"
+#include "spiffy.h"
 
-/*
- * char *body: the message to send to destination address
- *
- * send a message through udp procotol
- */
-void send_udp_packet(char *ip, int port_no, char *msg) {
-    char port[PORT_LEN];
-    struct addrinfo hints, *res = NULL;
-    int sock;
-    memset(&hints, 0, sizeof(hints));
-    memset(port, 0, PORT_LEN);
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_protocol = 0;
-    sprintf(port, "%d", port_no);
-    int err = getaddrinfo(ip, port, &hints, &res);
-    if (err != 0) {
-        fprintf(stderr, "Failed to resolve remote socket address (err = %d)",
-                err);
-        exit(-1);
-    }
-    if ((sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) ==
-        -1) {
-        fprintf(stderr, "Failed to create the UDP socket");
-        exit(-1);
-    }
-    if (sendto(sock, msg, strlen(msg), 0, res->ai_addr, res->ai_addrlen) ==
-        -1) {
-        fprintf(stderr, "Failed to send UDP data (err = %s) \n",
-                strerror(errno));
-        exit(-1);
-    }
-    return;
-}
 
 
 void send_udp_packet_with_sock(char *ip, int port_no, char *msg, int sock,
@@ -64,127 +31,16 @@ void send_udp_packet_with_sock(char *ip, int port_no, char *msg, int sock,
                 err);
         exit(-1);
     }
-    if (sendto(sock, msg, size, 0, res->ai_addr, res->ai_addrlen) == -1) {
+
+    if (spiffy_sendto(sock, msg, size, 0, res->ai_addr, res->ai_addrlen) == -1){
         fprintf(stderr, "Failed to send UDP data (err = %s) \n",
                 strerror(errno));
         exit(-1);
     }
+
     return;
 }
 
-/*
-  send packets of data reliably through udp protocol and a session
-  this function will be invoked in 2 places:
-  1. when a new GET request comes
-  2. when a timeout occurs
-  in both of these 2 cases, need to send all the packets from last acked.
- */
-void send_udp_packet_r(udp_session *session, char *from_ip, int port,
-                       int mysock, int timeout) {
-    if ((session->last_packet_sent - session->last_packet_acked) <
-        DEFAULT_WINDOW_SIZE) {
-        char filebuf[UDP_MAX_PACK_SIZE];
-        int packSize = 0;
-        packet_h cur_header;
-        // sending binary data?
-        memset(filebuf, 0, UDP_MAX_PACK_SIZE);
-        memset(&cur_header, 0, sizeof(packet_h));
-        int sent_bytes = 0;
-
-        if (!timeout) {/* non-timeout */
-            uint32_t offset = session->chunk_index * CHUNK_LEN +
-                              (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN) *
-                              session->last_packet_sent;
-            fseek(session->f, offset, SEEK_SET);
-            while ((session->last_packet_sent - session->last_packet_acked) <
-                   DEFAULT_WINDOW_SIZE) {
-                size_t packet_body_size =
-                        UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN;
-                size_t bytes_to_send =
-                        (CHUNK_LEN - session->sent_bytes) > packet_body_size
-                        ? packet_body_size : (CHUNK_LEN - session->sent_bytes);
-                if ((packSize = fread(filebuf, 1, bytes_to_send, session->f)) >
-                    0) {
-                    // debug purpose
-                    char *packet_hash = get_chunk_hash(filebuf, bytes_to_send);
-                    fprintf(stdout, "packet hash is %s\n", packet_hash);
-                    free(packet_hash);
-                    build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN,
-                                 packSize,
-                                 session->last_packet_sent + 1,
-                                 session->last_packet_acked);
-                    packet_m *packet = packet_message_builder(&cur_header,
-                                                              filebuf,
-                                                              packSize);
-                    send_packet(from_ip, port, packet, mysock);
-                    free(packet);
-                    fprintf(stdout, "offset is %u\n", offset);
-                    if (bytes_to_send != (uint32_t) packSize) {
-                        fprintf(stderr,
-                                "bytes to send is %u and actual # of bytes is %u\n",
-                                bytes_to_send, packSize);
-                    }
-                    session->last_packet_sent++;
-                    session->sent_bytes += bytes_to_send;
-                    add_timer(&session->sent_packet_timers, from_ip, port, &cur_header,
-                              filebuf, 0);
-                } else {
-                    fprintf(stderr,
-                            "Failed to read packet from File descriptor %p\n",
-                            session->f);
-                    exit(1);
-                }
-            }
-        } else {/* timeout */
-            fseek(session->f, session->chunk_index * CHUNK_LEN +
-                              (UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN) *
-                              session->last_packet_acked, SEEK_SET);
-            for (int i = session->last_packet_acked;
-                 i < session->last_packet_sent; i++) {
-                if ((packSize = fread(filebuf, 1,
-                                      UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN,
-                                      session->f)) > 0) {
-                    build_header(&cur_header, 15441, 1, 3, PACK_HEADER_BASE_LEN,
-                                 packSize,
-                                 i + 1, session->last_packet_acked);
-                    packet_m *packet = packet_message_builder(&cur_header,
-                                                              filebuf,
-                                                              packSize);
-                    send_packet(from_ip, port, packet, mysock);
-                    if (i == 0) {
-                        /* only add timer for the repeated packet */
-                        add_timer(&session->sent_packet_timers, from_ip, port, &cur_header,
-                                  filebuf, 0);
-                    }
-                } else {
-                    fprintf(stderr,
-                            "Failed to read packet from File descriptor %p\n",
-                            session->f);
-                    exit(1);
-                }
-            }
-        }
-    } else {
-        //todo: there have been enough pending packets, what todo?
-    }
-    return;
-}
-
-
-/*
-  build the packet header for an udp packet
- */
-void build_header(packet_h *header, int magicNo, int versionNo, int packType,
-                  int headerLen, int packLen, int seqNo, int ackNo) {
-    header->magicNo = magicNo;
-    header->versionNo = versionNo;
-    header->packType = packType;
-    header->headerLen = headerLen;
-    header->packLen = packLen;
-    header->seqNo = seqNo;
-    header->ackNo = ackNo;
-    return;
-}
 
 /**
  * most top level function of sending packets in reliable_udp module

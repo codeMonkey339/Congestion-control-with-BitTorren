@@ -1,4 +1,6 @@
 #include "packet.h"
+#include "utility.h"
+#include <string.h>
 
 /**
  * parses the header out from received buffer
@@ -7,7 +9,7 @@
  */
 packet_h * parse_packet(char **buf){
     char *start = *buf;
-    packet_h *header = (packet_h*)malloc(sizeof(packet_h));
+    packet_h *header = (packet_h*)Malloc(sizeof(packet_h));
     header->magicNo = ntohs(*(uint16_t*)start);
     header->versionNo = *(uint8_t*)(start + 2);
     header->packType = *(uint8_t*)(start + 3);
@@ -58,7 +60,7 @@ void build_packet_header(packet_h *header, int magicNo, int versionNo, int packT
  * @return
  */
 packet_m * packet_message_builder(char *header, char* body, uint32_t body_len){
-    packet_m *msg = (packet_m*)malloc(sizeof(packet_m));
+    packet_m *msg = (packet_m*)Malloc(sizeof(packet_m));
     memset(msg, 0, sizeof(packet_m));
     memcpy(&msg->header, header, PACK_HEADER_BASE_LEN);
 
