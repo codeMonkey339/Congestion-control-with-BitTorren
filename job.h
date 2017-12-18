@@ -30,6 +30,7 @@ typedef struct job_t{
     vector *ihave_msgs;
     /* for each chunk hash, sorted peer ids based on scarcity */
     vector *sorted_peer_ids_for_chunks;
+    vector *who_has_timers;
     char outputfile[BT_FILENAME_LEN];
     /* the file that contains all the data chunk hashes */
     char master_chunk_file[BT_FILENAME_LEN];
@@ -65,4 +66,5 @@ int verify_hash(char *chunk_hash, char *data);
 int check_all_chunks_received(vector *chunks_to_download);
 void write_data_outputfile(job_t *job, char *outputfile);
 request_t *build_request(char *chunk_hash, size_t peer_id, vector *peers);
+void check_timer(bt_config_t *config);
 #endif

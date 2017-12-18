@@ -27,6 +27,7 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     job->recv_sessions = (vector*)Malloc(sizeof(udp_recv_session));
     job->send_sessions = (vector*)Malloc(sizeof(udp_session));
     job->queued_requests = (vector*)Malloc(sizeof(request_t));
+    job->who_has_timers = (vector*)Malloc(sizeof(vector));
     strcpy(job->has_chunk_file, config->has_chunk_file);
     strcpy(job->master_chunk_file, config->chunk_file);
     strcpy(job->outputfile, outputfile);
@@ -41,6 +42,7 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     init_vector(job->recv_sessions, sizeof(udp_recv_session));
     init_vector(job->send_sessions, sizeof(udp_session));
     init_vector(job->queued_requests, sizeof(request_t));
+    init_vector(job->who_has_timers, sizeof(timer));
 
     read_chunk(chunkfile, &v1);
     read_chunk(config->has_chunk_file, &v2);
@@ -94,6 +96,7 @@ void populate_chunks_to_download(vector *chunks_to_download, vector *v1, vector
 void job_deinit(job_t *job){
     /*todo: de-intialize the job struct
      * 1. de-initialize chunks_to_download
+     * 2. release all the allocated vector memeory
      * */
 }
 
@@ -144,6 +147,8 @@ void job_flood_whohas_msg(vector *peers, char *query_msg, job_t *job){
         packet_m *packet = packet_message_builder(&header, query_msg, strlen
                 (query_msg));
         send_packet(peer->ip, peer->port, packet, job->mysock);
+        add_timer(job->who_has_timers, peer->ip, peer->port, &header,
+                  query_msg, strlen(query_msg));
         free(packet);
     }
     return;
@@ -263,4 +268,13 @@ request_t *build_request(char *chunk_hash, size_t peer_id, vector *peers){
     free(get_query->body);
     free(get_query);
     return req;
+}
+
+/**
+ * check out timeouts and handle accordingly
+ * @param config
+ */
+void check_timer(bt_config_t *config){
+    //todo: check out whohas message timeouts, and remove peer if timed out
+
 }

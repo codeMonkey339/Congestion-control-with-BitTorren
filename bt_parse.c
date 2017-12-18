@@ -144,7 +144,6 @@ void bt_parse_command_line(bt_config_t *config) {
   assert(strlen(config->chunk_file) != 0);
   assert(strlen(config->has_chunk_file) != 0);
   init_send_data_sessions(config);
-
   optind = old_optind;
 }
 

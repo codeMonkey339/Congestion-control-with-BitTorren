@@ -179,11 +179,11 @@ int read_from_sock(int sock, char *buf, int BUFLEN){
 /**
  * add a timer to the timer vector
  * @param timers
- * @param ip
- * @param sock
- * @param header
- * @param filebuf
- * @param buf_len
+ * @param ip ip of the message recipient
+ * @param sock port # of the message recipient
+ * @param header header of the sent packget
+ * @param filebuf body of the sent packet
+ * @param buf_len the body length of the sent packet
  */
 void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf,
                size_t buf_len) {
