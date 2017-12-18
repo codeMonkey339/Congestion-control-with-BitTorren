@@ -8,6 +8,7 @@
 #include "reliable_udp.h"
 #include "peer_utils.h"
 #include <sys/socket.h>
+#include "timers.h"
 
 /**
  * given a list of chunks to download, build the whohas query message

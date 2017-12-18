@@ -34,6 +34,8 @@ set(SOURCE_FILES
         job.h
         peer_utils.h
         peer_utils.c
+        timers.h
+        timers.c
         )
 
 add_executable(Congestion_control_with_BitTorren ${SOURCE_FILES})

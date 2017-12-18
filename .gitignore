@@ -1,6 +1,6 @@
 .*
 *.tar.gz
 *.o
-cmake-build-debug/
+cmake-build-debug/**/*
 !/.gitignore
 !/.git

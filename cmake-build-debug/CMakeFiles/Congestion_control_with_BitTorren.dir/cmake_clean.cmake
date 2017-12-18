@@ -16,6 +16,7 @@ file(REMOVE_RECURSE
   "CMakeFiles/Congestion_control_with_BitTorren.dir/packet_handler.c.o"
   "CMakeFiles/Congestion_control_with_BitTorren.dir/job.c.o"
   "CMakeFiles/Congestion_control_with_BitTorren.dir/peer_utils.c.o"
+  "CMakeFiles/Congestion_control_with_BitTorren.dir/timers.c.o"
   "Congestion_control_with_BitTorren.pdb"
   "Congestion_control_with_BitTorren"
 )

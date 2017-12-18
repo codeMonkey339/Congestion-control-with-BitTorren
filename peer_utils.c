@@ -50,3 +50,20 @@ ip_port_t *convert_peer_info_2_ip_port(peer_info_t *peer_info){
     ip_port->port = peer_info->port;
     return ip_port;
 }
+
+/**
+ * remove a peer from the peer list by its id
+ * @param job
+ * @param peer_id
+ */
+void remove_peer_by_id(vector *peers, size_t peer_id){
+    for (size_t i = 0; i < peers->len; i++){
+        peer_info_t *peer = vec_get(peers, i);
+        if (peer->id == peer_id){
+            vec_delete(peers, i);
+            break;
+        }
+    }
+
+    return;
+}
