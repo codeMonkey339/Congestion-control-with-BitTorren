@@ -27,6 +27,7 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     job->recv_sessions = (vector*)Malloc(sizeof(udp_recv_session));
     job->send_sessions = (vector*)Malloc(sizeof(udp_session));
     job->queued_requests = (vector*)Malloc(sizeof(request_t));
+    //todo: make a deep copy of the peers
     job->who_has_timers = (vector*)Malloc(sizeof(vector));
     strcpy(job->has_chunk_file, config->has_chunk_file);
     strcpy(job->master_chunk_file, config->chunk_file);
@@ -275,6 +276,56 @@ request_t *build_request(char *chunk_hash, size_t peer_id, vector *peers){
  * @param config
  */
 void check_timer(bt_config_t *config){
-    //todo: check out whohas message timeouts, and remove peer if timed out
+    check_whohas_timers(config);
 
+}
+
+
+void check_whohas_timers(bt_config_t *config){
+    job_t *job = config->job;
+    if (job->who_has_timers->len == 0){
+        return;
+    }else{
+        clock_t  cur_time = clock();
+        vector *timers = job->who_has_timers;
+        while(1){
+            int i = 0;
+            for (; i < timers->len; i++){
+                timer *timer = vec_get(timers, i);
+                clock_t time_diff = cur_time - timer->start;
+                if (time_diff / 1000 >= WHOHAS_TIMEOUT_TIME){
+                    //only remove timer in the job, not in config?
+                    //todo: move timer and peer_utils   
+                    remove_peer_by_id(job->peers, timer->peer_id);
+                    remove_timer(timers, timer);
+                    break;
+                }
+            }
+            if (i == timers->len){
+                // no more timers to remove
+                break;
+            }
+        }
+    }
+    return;
+}
+
+
+
+
+/**
+ * remove a peer from the peer list by its id
+ * @param job
+ * @param peer_id
+ */
+void remove_peer_by_id(vector *peers, size_t peer_id){
+    for (size_t i = 0; i < peers->len; i++){
+        peer_info_t *peer = vec_get(peers, i);
+        if (peer->id == peer_id){
+            vec_delete(peers, i);
+            break;
+        }
+    }
+
+    return;
 }

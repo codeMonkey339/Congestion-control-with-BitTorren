@@ -5,6 +5,7 @@
 #define DEFAULT_VEC_SIZE 10
 #define IP_STR_LEN 15
 #define IHAVE_TIMEOUT_TIME 180 /* timeout time is 180s */
+#define WHOHAS_TIMEOUT_TIME 20 /* timeout time is 20s */
 #define PORT_LEN 12
 /* maximum udp packet size excluding header */
 #define UDP_MAX_PACK_SIZE 1500

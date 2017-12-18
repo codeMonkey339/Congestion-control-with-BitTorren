@@ -339,7 +339,7 @@ void process_ihave_packet(handler_input *input, job_t *job) {
 
     ihave_parsed_msg = parse_ihave_packet(input, job->peers);
     vec_add(job->ihave_msgs, ihave_parsed_msg);
-    //todo: remove the timer for the received ihave msg
+    remove_timer_by_ip(job->who_has_timers, input->ip_port);
     if (check_all_ihave_msg_received(input, job)) {
         sorted_peer_ids_for_chunks = get_peer_ids_for_chunks(input, job);
         job->sorted_peer_ids_for_chunks = sorted_peer_ids_for_chunks;
