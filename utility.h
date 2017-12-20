@@ -35,7 +35,7 @@ typedef struct peers{
 
 
 typedef struct timer{
-  clock_t start;
+  time_t start;
   short repeat_times;
   short peer_id;
   /* ip of recipient */

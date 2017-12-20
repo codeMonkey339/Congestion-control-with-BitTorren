@@ -63,5 +63,6 @@ void process_get_packet(handler_input *input,
 void process_data_packet(handler_input *input, job_t *job);
 void process_ack_packet(handler_input *input,
                         send_data_sessions *send_data_session);
+void update_owned_chunks(job_t *job, char *chunk_hash);
 #endif
 

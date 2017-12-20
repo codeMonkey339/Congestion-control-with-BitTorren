@@ -341,16 +341,17 @@ void process_ihave_packet(handler_input *input, job_t *job) {
     ihave_parsed_msg = parse_ihave_packet(input, job->peers);
     vec_add(job->ihave_msgs, ihave_parsed_msg);
     remove_timer_by_ip(job->who_has_timers, input->ip_port);
-    if (check_all_ihave_msg_received(input, job)) {
-        sorted_peer_ids_for_chunks = get_peer_ids_for_chunks(input, job);
-        job->sorted_peer_ids_for_chunks = sorted_peer_ids_for_chunks;
-        send_get_requests(sorted_peer_ids_for_chunks, job);
-
-        vec_free(sorted_peer_ids_for_chunks);
-        free(sorted_peer_ids_for_chunks);
-        free(ihave_parsed_msg);
+    while(!check_all_ihave_msg_received(input, job)){
+        check_whohas_timers(job);
     }
 
+    sorted_peer_ids_for_chunks = get_peer_ids_for_chunks(input, job);
+    job->sorted_peer_ids_for_chunks = sorted_peer_ids_for_chunks;
+    send_get_requests(sorted_peer_ids_for_chunks, job);
+
+    vec_free(sorted_peer_ids_for_chunks);
+    free(sorted_peer_ids_for_chunks);
+    free(ihave_parsed_msg);
     return;
 }
 

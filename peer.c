@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -294,7 +295,7 @@ void peer_run(bt_config_t *config) {
                                    "Currently unused", config);
             }
         }
-        check_timer(config);
+        //check_timer(config);
     }
 
     /* try to avoid double release */

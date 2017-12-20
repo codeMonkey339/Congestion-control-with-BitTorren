@@ -10,6 +10,7 @@
 #include <ctype.h>
 #include "reliable_udp.h"
 #include "timers.h"
+#include <unistd.h>
 
 
 /**
@@ -153,6 +154,9 @@ void job_flood_whohas_msg(vector *peers, char *query_msg, job_t *job){
                   query_msg, strlen(query_msg));
         free(packet);
     }
+
+    sleep(WHOHAS_TIMEOUT_TIME);
+
     return;
 }
 
@@ -277,24 +281,26 @@ request_t *build_request(char *chunk_hash, size_t peer_id, vector *peers){
  * @param config
  */
 void check_timer(bt_config_t *config){
-    check_whohas_timers(config);
+    check_whohas_timers(config->job);
 
 }
 
 
-void check_whohas_timers(bt_config_t *config){
-    job_t *job = config->job;
+void check_whohas_timers(job_t *job){
+    if (job == NULL){
+      return;
+    }
     if (job->who_has_timers->len == 0){
         return;
     }else{
-        clock_t  cur_time = clock();
+        time_t cur_time = time(0);
         vector *timers = job->who_has_timers;
         while(1){
             int i = 0;
             for (; i < timers->len; i++){
                 timer *timer = vec_get(timers, i);
-                clock_t time_diff = cur_time - timer->start;
-                if (time_diff / 1000 >= WHOHAS_TIMEOUT_TIME){
+                time_t time_diff = cur_time - timer->start;
+                if (time_diff >= WHOHAS_TIMEOUT_TIME){
                     //only remove timer in the job, not in config?
                     remove_peer_by_id(job->peers, timer->peer_id);
                     remove_timer(timers, timer);

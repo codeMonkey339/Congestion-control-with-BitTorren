@@ -126,5 +126,6 @@ void copy_recv_packet_2_buf(udp_recv_session *recv_session, handler_input
 
 void copy_chunk_2_job_buf(udp_recv_session *recv_session, job_t *job, int
 chunk_to_download_id);
+void remove_acked_packet_timers(udp_session *send_session, size_t ackNo);
 
 #endif /* _RELIABLE_UDP_H */

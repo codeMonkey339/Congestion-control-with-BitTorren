@@ -199,7 +199,7 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
                               int mysock) {
     if ((send_session->last_packet_sent - send_session->last_packet_acked) <
         SEND_WINDOW_SIZE) {
-        char *filebuf[UDP_MAX_PACK_SIZE];
+        char filebuf[UDP_MAX_PACK_SIZE];
         uint32_t read_packet_size, full_body_size, bytes_to_send, left_bytes;
         packet_h packet_header;
         packet_m *packet;
@@ -387,7 +387,7 @@ void ack_recv_data_packet(udp_recv_session *recv_session, job_t *job,
         build_packet_header(&reply_header, 15441, 1, 4, PACK_HEADER_BASE_LEN,
                             0, 0, recv_session->last_packet_acked);
     }else{
-        copy_recv_packet_2_buf(recv_session, recv_header);
+        copy_recv_packet_2_buf(recv_session, input);
         build_packet_header(&reply_header, 15441, 1, 4, PACK_HEADER_BASE_LEN,
                             0, 0, recv_session->last_packet_acked);
     }

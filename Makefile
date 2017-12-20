@@ -3,7 +3,7 @@ CC 		= gcc
 CFLAGS		= -g -Wall -DDEBUG
 LDFLAGS		= -lm
 TESTDEFS	= -DTESTING			# comment this out to disable debugging code
-OBJS		= peer.o bt_parse.o spiffy.o debug.o input_buffer.o chunk.o sha.o utility.o reliable_udp.o job.o packet.o packet_handler.o peer_utils.o
+OBJS		= peer.o bt_parse.o spiffy.o debug.o input_buffer.o chunk.o sha.o utility.o reliable_udp.o job.o packet.o packet_handler.o peer_utils.o timers.o
 MK_CHUNK_OBJS   = make_chunks.o chunk.o sha.o utility.o packet.o
 
 BINS            = peer make-chunks
