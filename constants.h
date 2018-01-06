@@ -20,6 +20,7 @@
 #define SEND_WINDOW_SIZE 8
 #define RECV_WINDOW_SIZE 8
 #define MAXIMUM_DUP_ACK 5
+#define SS_THRESHOLD 64 /* the slow start threshold of window size */
 
 
 enum PACKET_TYPE{
@@ -29,6 +30,13 @@ enum PACKET_TYPE{
     DATA= 3,
     ACK = 4,
     DENIED = 5
+};
+
+enum CONN_STATE{
+    SLOW_START = 0,
+    CONG_AVOID = 1,
+    FAST_RETRANS = 2,
+    FAST_RECOVERY = 3
 };
 
 

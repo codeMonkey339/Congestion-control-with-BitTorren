@@ -61,6 +61,14 @@ typedef struct udp_session {
     uint32_t index[DEFAULT_WINDOW_SIZE];
     /* sent_packet_timers for sent packets */
     vector sent_packet_timers;
+    /* the window size of sending side */
+    uint8_t send_window_size;
+    /* the slow start threshold for the current connection */
+    uint8_t ss_threshold;
+    /* the state for the current reliable connection */
+    enum CONN_STATE conn_state;
+    /* the time for last window size increment */
+    time_t last_wind_size_incr_time;
     //char *buf; /* buffer to hold necessary sent chunks */
 } udp_session;
 

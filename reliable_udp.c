@@ -180,6 +180,10 @@ void init_send_session(udp_session *send_session,
     send_session->port = ip_port->port;
     send_session->sent_bytes = 0;
     send_session->chunk_index = chunk_idx;
+    send_session->send_window_size = 1;
+    send_session->ss_threshold = SS_THRESHOLD;
+    send_session->conn_state = SLOW_START;
+    send_session->last_wind_size_incr_time = 0;
 
     for (uint32_t i = 0; i < sizeof(send_session->index) / sizeof(uint32_t);
          i++) {
@@ -198,7 +202,7 @@ void init_send_session(udp_session *send_session,
 void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
                               int mysock) {
     if ((send_session->last_packet_sent - send_session->last_packet_acked) <
-        SEND_WINDOW_SIZE) {
+        send_session->send_window_size) {
         char filebuf[UDP_MAX_PACK_SIZE];
         uint32_t read_packet_size, full_body_size, bytes_to_send, left_bytes;
         packet_h packet_header;
@@ -210,7 +214,7 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
                            send_session->last_packet_sent);
 
         while((send_session->last_packet_sent -
-                send_session->last_packet_acked) < SEND_WINDOW_SIZE){
+                send_session->last_packet_acked) < send_session->send_window_size){
             full_body_size = UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN;
             left_bytes = CHUNK_LEN - send_session->sent_bytes;
             bytes_to_send = left_bytes>full_body_size?full_body_size:left_bytes;
@@ -422,7 +426,29 @@ void move_send_window_forward(udp_session *send_session,
     }else{
         send_udp_packet_reliable(send_session, ip_port, input->incoming_socket);
     }
+    increase_send_window_size(send_session);
+    return;
+}
 
+/**
+ * given the state of the current connection, increase the sending window
+ * size accordingly
+ *
+ * @param send_session
+ */
+void increase_send_window_size(udp_session *send_session){
+    //todo: need to increase window size
+    if (send_session->conn_state == SLOW_START){
+        // increase the window size by 1 for each ACK
+    }else if (send_session->conn_state == CONG_AVOID){
+        // increase the window size by 1 for each RTT???
+        // need to record time for last increment and calculate RTT?
+        // how to calculate RTT? using the exponential averaging?
+        time_t cur_time = time(0);
+        if (send_session->last_wind_size_incr_time == 0){
+
+        }
+    }
     return;
 }
 
@@ -511,6 +537,7 @@ input, send_data_sessions *send_data_session){
                           send_session->last_packet_acked);
 
     if (send_session->dup_ack > MAXIMUM_DUP_ACK){
+        decrease_ss_threshold_and_window_size(send_session);
         fprintf(stderr, "One peer has crashed with ip %s, port: %d\n",
                 send_session->ip, send_session->port);
         //recover_from_crashed_peer(send_session, send_data_session);
@@ -519,6 +546,16 @@ input, send_data_sessions *send_data_session){
                                    send_data_session->mysock);
     }
 
+    return;
+}
+
+/**
+ * decrease the slow start threshold and sending window size
+ *
+ * @param send_session
+ */
+void decrease_ss_threshold_and_window_size(udp_session *send_session){
+    //todo:
     return;
 }
 
