@@ -19,8 +19,9 @@
 #define BT_MAX_PEERS 1024
 #define SEND_WINDOW_SIZE 8
 #define RECV_WINDOW_SIZE 8
-#define MAXIMUM_DUP_ACK 5
+#define MAXIMUM_DUP_ACK 3 /* # of dup acks before resending the packet */
 #define SS_THRESHOLD 64 /* the slow start threshold of window size */
+#define ESTIMATED_RTT_WEIGHT 0.8
 
 
 enum PACKET_TYPE{

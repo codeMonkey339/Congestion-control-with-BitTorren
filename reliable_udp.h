@@ -59,6 +59,8 @@ typedef struct udp_session {
     char chunk_hash[CHUNK_HASH_SIZE];
     uint32_t sent_bytes;
     uint32_t index[DEFAULT_WINDOW_SIZE];
+    /* array for recording the time of sent packets */
+    time_t packets_sent_time[SS_THRESHOLD];
     /* sent_packet_timers for sent packets */
     vector sent_packet_timers;
     /* the window size of sending side */
@@ -69,6 +71,8 @@ typedef struct udp_session {
     enum CONN_STATE conn_state;
     /* the time for last window size increment */
     time_t last_wind_size_incr_time;
+    /* the round trip time for the current connection */
+    double rtt;
     //char *buf; /* buffer to hold necessary sent chunks */
 } udp_session;
 
