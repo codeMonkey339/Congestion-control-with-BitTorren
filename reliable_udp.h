@@ -27,7 +27,7 @@ typedef struct udp_sender_session {
     short last_acceptable_frame;
     short peer_id;
     char ip[IP_STR_LEN];
-    short sock;
+    int sock;
     char chunk_hash[CHUNK_HASH_SIZE];
     char *data;
     /* the size of stored data */
