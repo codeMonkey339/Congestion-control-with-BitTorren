@@ -302,7 +302,7 @@ void check_whohas_timers(job_t *job){
                 time_t time_diff = cur_time - timer->start;
                 if (time_diff >= WHOHAS_TIMEOUT_TIME){
                     //only remove timer in the job, not in config?
-                    remove_peer_by_id(job->peers, timer->peer_id);
+                    remove_peer(job->peers, timer);
                     remove_timer(timers, timer);
                     break;
                 }
