@@ -41,7 +41,7 @@ typedef struct timer{
   /* ip of recipient */
   char ip[IP_STR_LEN];
   /* socket of recipient */
-  short sock;
+  int sock;
   /* each timer carries with itself the message to send */
   char *body;
   packet_h *header;

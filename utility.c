@@ -181,7 +181,7 @@ int read_from_sock(int sock, char *buf, int BUFLEN){
  * @param timers
  * @param ip ip of the message recipient
  * @param sock port # of the message recipient
- * @param header header of the sent packget
+ * @param header header of the sent packet
  * @param filebuf body of the sent packet
  * @param buf_len the body length of the sent packet
  */

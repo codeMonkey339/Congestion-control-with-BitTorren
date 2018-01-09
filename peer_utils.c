@@ -67,3 +67,37 @@ void remove_peer_by_id(vector *peers, size_t peer_id){
 
     return;
 }
+
+
+/**
+ * remove a peer from the peer list, regardless of the means
+ * @param peers
+ * @param timer
+ */
+void remove_peer(vector *peers, timer *timer){
+    ip_port_t ip_port;
+    build_ip_port(timer->ip, timer->sock, &ip_port);
+
+    for (size_t i = 0; i < peers->len; i++){
+        peer_info_t *peer = vec_get(peers, i);
+        if (strcmp(peer->ip, ip_port.ip) == 0 && peer->port == ip_port.port){
+            vec_delete(peers, peer);
+            break;
+        }
+    }
+}
+
+
+/**
+ * helper for building ip_port struct
+ * @param ip
+ * @param port
+ * @param ip_port
+ * @return
+ */
+ip_port_t *build_ip_port(char *ip, int port, ip_port_t *ip_port){
+    strcpy(ip_port->ip, ip);
+    ip_port->port = port;
+
+    return ip_port;
+}
