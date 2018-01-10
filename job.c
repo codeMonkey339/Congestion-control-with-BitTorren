@@ -138,7 +138,7 @@ void get_masterfile(char *masterfile, char *hash_chunk_file){
  * flood whohas messages to all peers
  * @param peers
  * @param query_msg
- * @param job
+ * @param jo
  */
 void job_flood_whohas_msg(vector *peers, char *query_msg, job_t *job){
     packet_h header;
@@ -159,6 +159,29 @@ void job_flood_whohas_msg(vector *peers, char *query_msg, job_t *job){
 
     return;
 }
+
+
+/**
+ * all chunks to download are owned locally, collect from master data file
+ * @param outputfile
+ * @param job
+ */
+void collect_from_local(char *outputfile, job_t *job){
+    char *master_data_file = job->master_data_file;
+    vector *chunks_to_download = job->chunks_to_download;
+    FILE *output = Fopen(outputfile, "a"), *master_data = Fopen
+            (master_data_file, "r"), *master_chunk = Fopen
+            (job->master_chunk_file, "r");
+
+    for (size_t i = 0; i < chunks_to_download->len; i++){
+        chunk_to_download *chunk = vec_get(chunks_to_download, i);
+        copy_local_chunk(chunk, job);
+        fwrite(output, 1, CHUNK_LEN, chunk->chunk);
+    }
+
+    return;
+}
+
 
 
 /**
