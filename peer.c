@@ -182,7 +182,14 @@ void process_commandline_get(char *chunkfile, char *outputfile,
     config->job = job_init(chunkfile, outputfile, config);
     char *whohas_query = build_whohas_query(((job_t*)config->job)
                                                     ->chunks_to_download);
-    job_flood_whohas_msg(&config->peer->peer, whohas_query, config->job);
+    if (strlen(whohas_query) > 0){
+        //todo: only need to download partial chunks
+        fprintf(stdout, "disseminating whohas packets to peers \n");
+        job_flood_whohas_msg(&config->peer->peer, whohas_query, config->job);
+    }else{
+        fprintf(stdout, "all chunks are owned locally, collecting locally \n");
+        collect_from_local(outputfile, config->job);
+    }
     free(whohas_query);
 
     //todo: need to free the memory for job

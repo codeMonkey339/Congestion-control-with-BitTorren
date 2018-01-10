@@ -18,18 +18,30 @@
 char *build_whohas_query(vector *chunks_to_download) {
     uint32_t query_len = chunks_to_download->len * CHUNK_HASH_SIZE
                          + strlen("WHOHAS");
-    char *query = (char *) malloc(query_len);
+    char *query = (char *) malloc(query_len), *chunk_str = (char*)malloc
+            (query_len);
+    size_t num_of_chunks = 0;
     memset(query, 0, query_len);
-    strcat(query, "WHOHAS ");
-    sprintf(query + strlen(query), "%d ", chunks_to_download->len);
+    memset(chunk_str, 0, query_len);
     for (int i = 0; i < chunks_to_download->len; i++) {
         chunk_to_download *chunk = vec_get(chunks_to_download, i);
         if (!chunk->own) {
+            num_of_chunks++;
             strcat(query, chunk->chunk_hash);
             if (i != (chunks_to_download->len - 1)) {
                 strcat(query, " ");
             }
         }
+    }
+
+    if (num_of_chunks == 0){
+        free(chunk_str);
+        return query;
+    }else{
+        strcat(query, "WHOHAS ");
+        sprintf(query + strlen(query), "%d ", num_of_chunks);
+        strcat(query, chunk_str);
+        free(chunk_str);
     }
     return query;
 }

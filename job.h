@@ -71,4 +71,5 @@ void populate_chunks_to_download(vector *chunks_to_download, vector *v1, vector
 *common_chunk_hash, job_t *job);
 void copy_local_chunk(chunk_to_download *chunk, job_t *job);
 void check_whohas_timers(job_t *job);
+void collect_from_local(char *outputfile, job_t *job);
 #endif
