@@ -37,7 +37,6 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     get_masterfile(job->master_data_file, job->master_chunk_file);
     job->mysock = config->mysock;
     job->identity = config->identity;
-    job->peers = &config->peer->peer;
     init_vector(&v1, CHUNK_HASH_SIZE);
     init_vector(&v2, CHUNK_HASH_SIZE);
     init_vector(job->chunks_to_download, sizeof(chunk_to_download));
@@ -46,6 +45,13 @@ job_t* job_init(char *chunkfile, char *outputfile, bt_config_t *config){
     init_vector(job->send_sessions, sizeof(udp_session));
     init_vector(job->queued_requests, sizeof(request_t));
     init_vector(job->who_has_timers, sizeof(timer));
+    // for each job, make a local copy of the peers
+    job->peers = (vector*)Malloc(sizeof(vector));
+    init_vector(job->peers, sizeof(peer_info_t));
+    for (size_t i = 0; i < config->peer->peer.len; i++){
+        peer_info_t * cur_peer = vec_get(&config->peer->peer, i);
+        vec_add(job->peers, cur_peer);
+    }
 
     read_chunk(chunkfile, &v1);
     read_chunk(config->has_chunk_file, &v2);
