@@ -27,9 +27,9 @@ char *build_whohas_query(vector *chunks_to_download) {
         chunk_to_download *chunk = vec_get(chunks_to_download, i);
         if (!chunk->own) {
             num_of_chunks++;
-            strcat(query, chunk->chunk_hash);
+            strcat(chunk_str, chunk->chunk_hash);
             if (i != (chunks_to_download->len - 1)) {
-                strcat(query, " ");
+                strcat(chunk_str, " ");
             }
         }
     }
@@ -40,7 +40,7 @@ char *build_whohas_query(vector *chunks_to_download) {
     }else{
         strcat(query, "WHOHAS ");
         sprintf(query + strlen(query), "%d ", num_of_chunks);
-        strcat(query, chunk_str);
+        sprintf(query + strlen(query), "%s", chunk_str);
         free(chunk_str);
     }
     return query;
