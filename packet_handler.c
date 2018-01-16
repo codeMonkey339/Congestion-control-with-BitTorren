@@ -457,6 +457,7 @@ void process_data_packet(handler_input *input, job_t *job) {
 
     if (recv_header->seqNo <= recv_session->last_packet_acked ||
         recv_header->seqNo > recv_session->last_acceptable_frame) {
+      //todo: something wrong with mechanism for sending dup packets
         fprintf(stderr, "Received a stray packet out of current window \n");
         return;
     }
