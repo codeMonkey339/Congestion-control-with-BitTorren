@@ -531,7 +531,7 @@ void process_ack_packet(handler_input *input,
     /* cumulative acknowledgement could happen*/
     if (header->ackNo >= (send_session->last_packet_acked + 1)) {
         move_send_window_forward(send_session, send_data_session, input);
-    } else if (header->ackNo == send_session->last_packet_sent) {
+    } else if (header->ackNo == send_session->last_packet_acked) {
         handle_duplicate_ack_packet(send_session, input, send_data_session);
     } else {
         fprintf(stderr, "Received a stray ACK packet \n");

@@ -112,7 +112,7 @@ void build_udp_recv_session(udp_recv_session *recv_session, int peer_id, char
     peer_info_t *peer_info = get_peer_info_from_id(peers, peer_id);
     recv_session->last_packet_acked = 0;
     recv_session->last_acceptable_frame = recv_session->last_packet_acked +
-                                          DEFAULT_WINDOW_SIZE;
+                                          SS_THRESHOLD;
     recv_session->peer_id = peer_id;
     recv_session->sock = peer_info->port;
     strcpy(recv_session->ip, peer_info->ip);
@@ -559,6 +559,8 @@ void repeat_udp_packet_reliable(udp_session *send_session, handler_input
  */
 void handle_duplicate_ack_packet(udp_session *send_session, handler_input *
 input, send_data_sessions *send_data_session){
+    fprintf(stdout, "received a duplicate ack packet with sequence number "
+            "%d\n", send_session->last_packet_acked);
     ip_port_t *ip_port = parse_peer_ip_port(&input->from_ip);
     send_session->dup_ack++;
     delete_timer_of_ackNo(&send_session->sent_packet_timers, ip_port->ip, ip_port->port,
@@ -570,7 +572,7 @@ input, send_data_sessions *send_data_session){
                         "%d\n",
                 send_session->ip, send_session->port);
     }
-    repeat_udp_packet_reliable(send_session, input, send_data_session->mysock);
+    repeat_udp_packet_reliable(send_session, input, input->incoming_socket);
 
     return;
 }
