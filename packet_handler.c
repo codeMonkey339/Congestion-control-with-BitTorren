@@ -457,7 +457,6 @@ void process_data_packet(handler_input *input, job_t *job) {
 
     if (recv_header->seqNo <= recv_session->last_packet_acked ||
         recv_header->seqNo > recv_session->last_acceptable_frame) {
-      //todo: something wrong with mechanism for sending dup packets
         fprintf(stderr, "Received a stray packet out of current window \n");
         return;
     }
@@ -467,6 +466,7 @@ void process_data_packet(handler_input *input, job_t *job) {
             ip_port->ip, ip_port->port);
     
     if (input->recv_size < UDP_MAX_PACK_SIZE) {
+      //todo: refactor, move this part of code to a separate function
         if (!verify_hash(recv_session->chunk_hash, recv_session->data)) {
             int chunk_to_download_id = get_chunk_to_download_id
                     (recv_session->chunk_hash, job->chunks_to_download);

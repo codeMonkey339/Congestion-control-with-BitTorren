@@ -523,7 +523,7 @@ void repeat_udp_packet_reliable(udp_session *send_session, handler_input
     // speed the re-transmission of the lost packet: one more one times of
     // subsequent packets will be acked.
     for (size_t i = send_session->last_packet_acked + 1; i <=
-        send_session->last_packet_sent; i++){
+	   send_session->last_packet_acked + 1; i++){
         full_body_size = UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN;
         if (send_session->sent_bytes == CHUNK_LEN && i ==
                                                              send_session->last_packet_sent){
@@ -559,6 +559,7 @@ void repeat_udp_packet_reliable(udp_session *send_session, handler_input
  */
 void handle_duplicate_ack_packet(udp_session *send_session, handler_input *
 input, send_data_sessions *send_data_session){
+  //todo: if the repeat packet has been sent, check whether one rtt has passed
     fprintf(stdout, "received a duplicate ack packet with sequence number "
             "%d\n", send_session->last_packet_acked);
     ip_port_t *ip_port = parse_peer_ip_port(&input->from_ip);
@@ -567,11 +568,16 @@ input, send_data_sessions *send_data_session){
                           send_session->last_packet_acked);
 
     if (send_session->dup_ack > MAXIMUM_DUP_ACK){
+      /* fast retransimit mechanism */
         decrease_ss_threshold_and_window_size(send_session);
         fprintf(stderr, "One packet has been lost at peer with ip %s, port: "
                         "%d\n",
                 send_session->ip, send_session->port);
     }
+    /*
+      timeout & fast retransmit will both work. Note once fast transmit occurs,
+      window size is set to 1!
+     */
     repeat_udp_packet_reliable(send_session, input, input->incoming_socket);
 
     return;
