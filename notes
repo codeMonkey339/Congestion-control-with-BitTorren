@@ -1,0 +1,12 @@
+Explanation about fast retransmit:
+https://www.isi.edu/nsnam/DIRECTED_RESEARCH/DR_WANIDA/DR/JavisInActionFastRetransmitFrame.html
+
+
+*timeout & fast retransmit could work at the same time
+
+One possible case:
+window size is 64, the first packet in window is lost.
+
+After 3 dup acks, fast retransmit works --> window size 1, threshold halved
+after 2nd 3 dup acks, fast retransmit works --> window size 1, threshold halved (no way to send another retransmitted packet since the only window slot is occupied by last retransmitted packet)
+...
