@@ -462,12 +462,15 @@ void process_data_packet(handler_input *input, job_t *job) {
     }
 
     ack_recv_data_packet(recv_session, job, input);
-    fprintf(stdout, "Received a packet from ip: %s and port: %d \n",
-            ip_port->ip, ip_port->port);
+    fprintf(stdout, "Received a packet from ip: %s and port: %d with packet "
+                    "no%d\n",ip_port->ip, ip_port->port, recv_header->seqNo);
     
     if (input->recv_size < UDP_MAX_PACK_SIZE) {
-      //todo: refactor, move this part of code to a separate function
+        fprintf(stdout, "Received a complete chunk from %s:%d\n",
+                ip_port->ip, ip_port->port);
         if (!verify_hash(recv_session->chunk_hash, recv_session->data)) {
+            fprintf(stdout, "hash of received chunk is verified, copying to "
+                    "local \n");
             int chunk_to_download_id = get_chunk_to_download_id
                     (recv_session->chunk_hash, job->chunks_to_download);
             copy_chunk_2_job_buf(recv_session, job, chunk_to_download_id);
@@ -482,10 +485,12 @@ void process_data_packet(handler_input *input, job_t *job) {
 
         if (!check_all_chunks_received(job->chunks_to_download)) {
             write_data_outputfile(job, job->outputfile);
+            free_udp_recv_session(job->recv_sessions, recv_session);
         } else {
-            process_queued_up_requests(job->queued_requests, recv_session, job);
+            size_t cur_peer_id = recv_session->peer_id;
+            free_udp_recv_session(job->recv_sessions, recv_session);
+            process_queued_up_requests(job->queued_requests, cur_peer_id, job);
         }
-        free_udp_recv_session(job->recv_sessions, recv_session);
     }
 
     return;
@@ -507,6 +512,7 @@ void update_owned_chunks(job_t *job, char *chunk_hash){
      */
     memset(updated_chunk_entry, 0, CHUNK_HASH_SIZE + 3);
     fprintf(f, "%d %s\n", chunk_id, chunk_hash);
+    fprintf(stdout, "copies a chunk with hash %s to the hashchunk file %s\n", chunk_hash, job->has_chunk_file);
     fclose(f);
     return;
 }
@@ -531,11 +537,14 @@ void process_ack_packet(handler_input *input,
 
     /* cumulative acknowledgement could happen*/
     if (header->ackNo >= (send_session->last_packet_acked + 1)) {
+        fprintf(stdout, "Received the ack for packet %d \n", header->ackNo);
         move_send_window_forward(send_session, send_data_session, input);
     } else if (header->ackNo == send_session->last_packet_acked) {
         handle_duplicate_ack_packet(send_session, input, send_data_session);
     } else {
-        fprintf(stderr, "Received a stray ACK packet \n");
+        fprintf(stderr, "Received a stray ACK packet with packet no %d and "
+                "the last aced no is %d\n", header->ackNo,
+                send_session->last_packet_acked);
     }
 
     return;

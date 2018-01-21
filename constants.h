@@ -23,7 +23,6 @@
 #define SS_THRESHOLD 64 /* the slow start threshold of window size */
 #define ESTIMATED_RTT_WEIGHT 0.8
 
-
 enum PACKET_TYPE{
     WHOHAS = 0,
     IHAVE = 1,

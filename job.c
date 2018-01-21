@@ -256,6 +256,7 @@ int check_all_chunks_received(vector *chunks_to_download){
  * @param outputfile
  */
 void write_data_outputfile(job_t *job, char *outputfile){
+    fprintf(stdout, "Writing the received chunk to output file \n");
     FILE *newfile = Fopen(outputfile, "w");
 
     for(size_t i = 0; i < job->chunks_to_download->len; i++){

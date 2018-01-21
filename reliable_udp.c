@@ -117,7 +117,7 @@ void build_udp_recv_session(udp_recv_session *recv_session, int peer_id, char
     recv_session->sock = peer_info->port;
     strcpy(recv_session->ip, peer_info->ip);
     strcpy(recv_session->chunk_hash, chunk_hash);
-    recv_session->data = (char *) Malloc(CHUNK_LEN);
+    recv_session->data = Malloc(CHUNK_LEN);
     recv_session->data_complete = 0;
     strcpy(recv_session->chunk_hash, chunk_hash);
 
@@ -218,6 +218,7 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
 
         while((send_session->last_packet_sent -
                 send_session->last_packet_acked) < send_session->send_window_size){
+            //todo: keep a variabled called acked_bytes here
             full_body_size = UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN;
             left_bytes = CHUNK_LEN - send_session->sent_bytes;
             bytes_to_send = left_bytes>full_body_size?full_body_size:left_bytes;
@@ -229,7 +230,8 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
             packet = packet_message_builder(&packet_header, filebuf,
                                             read_packet_size);
             send_packet(ip_port->ip, ip_port->port, packet, mysock);
-            fprintf(stdout, "Sent a packet of size %ud \n", read_packet_size);
+            fprintf(stdout, "Sent a packet of size %u with packet number %d\n",
+                    read_packet_size, packet_header.seqNo);
             //todo: these details could be hidden
             send_session->last_packet_sent++;
             send_session->sent_bytes += read_packet_size;
@@ -349,6 +351,8 @@ int udp_recv_session_exists(vector *recv_sessions, size_t peer_id){
  */
 void process_queued_up_requests(vector *queued_requests, udp_recv_session
 *recv_session, job_t *job){
+    fprintf(stdout, "after receiving a complete chunk, process next chunk in "
+            "line \n");
     char *hash;
 
     for (size_t i = 0; i < queued_requests->len; i++){
@@ -372,6 +376,7 @@ void process_queued_up_requests(vector *queued_requests, udp_recv_session
  */
 void free_udp_recv_session(vector *recv_sessions, udp_recv_session *
 recv_session){
+    fprintf(stdout, "freeing the connection of the finished chunk \n");
     free(recv_session->data);
     vec_delete(recv_sessions, recv_session);
 
@@ -457,6 +462,8 @@ void increase_send_window_size(udp_session *send_session){
             send_session->last_wind_size_incr_time = time(0);
         }
     }
+    fprintf(stdout, "current window size is %d\n",
+            send_session->send_window_size);
     return;
 }
 
@@ -518,15 +525,12 @@ void repeat_udp_packet_reliable(udp_session *send_session, handler_input
     memset(&packet_header, 0, sizeof(packet_h));
     seek_to_packet_pos(send_session->f, send_session->chunk_index,
                        send_session->last_packet_acked);
-
-    //todo: here only the lost packet should be re-send. otherwise this will
-    // speed the re-transmission of the lost packet: one more one times of
-    // subsequent packets will be acked.
-    for (size_t i = send_session->last_packet_acked + 1; i <=
-	   send_session->last_packet_acked + 1; i++){
+    /* only re-send the lost packet */
+    for (size_t i = send_session->last_packet_acked + 1; meet_resend_cond
+            (send_session, i); i++){
         full_body_size = UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN;
-        if (send_session->sent_bytes == CHUNK_LEN && i ==
-                                                             send_session->last_packet_sent){
+        if (send_session->sent_bytes == CHUNK_LEN &&
+                i == send_session->last_packet_sent){
             bytes_to_send = CHUNK_LEN % full_body_size;
         }else{
             bytes_to_send = full_body_size;
@@ -539,16 +543,32 @@ void repeat_udp_packet_reliable(udp_session *send_session, handler_input
         packet = packet_message_builder(&packet_header, filebuf,
                                         read_packet_size);
         send_packet(ip_port->ip, ip_port->port, packet, mysock);
-        fprintf(stdout, "Sent a repeating packet of packet number %ud\n", i);
-        free(packet);
-
+        /* update the last packet sent in the case of shrunk window size  */
+        if (send_session->last_packet_sent < i){
+            send_session->last_packet_sent = i;
+        }
         if (i == (send_session->last_packet_acked + 1)){
             add_timer(&send_session->sent_packet_timers, ip_port->ip, ip_port->port,
                       &packet_header, filebuf, read_packet_size);
         }
+        free(packet);
+        fprintf(stdout, "Sent a repeating packet of packet number %ud\n", i);
     }
 
     return;
+}
+
+
+/**
+ * the condition for determing whether to re-send a packet
+ * @param send_session
+ * @param i
+ * @return
+ */
+int meet_resend_cond(udp_session *send_session, int i){
+    return (i <= (send_session->last_packet_acked + 1) &&
+            send_session->last_packet_sent <
+            (send_session->last_packet_acked + send_session->send_window_size));
 }
 
 /**
@@ -559,26 +579,26 @@ void repeat_udp_packet_reliable(udp_session *send_session, handler_input
  */
 void handle_duplicate_ack_packet(udp_session *send_session, handler_input *
 input, send_data_sessions *send_data_session){
-  //todo: if the repeat packet has been sent, check whether one rtt has passed
     fprintf(stdout, "received a duplicate ack packet with sequence number "
             "%d\n", send_session->last_packet_acked);
     ip_port_t *ip_port = parse_peer_ip_port(&input->from_ip);
     send_session->dup_ack++;
-    delete_timer_of_ackNo(&send_session->sent_packet_timers, ip_port->ip, ip_port->port,
-                          send_session->last_packet_acked);
 
+    /* fast re-transmit mechanism */
     if (send_session->dup_ack > MAXIMUM_DUP_ACK){
-      /* fast retransimit mechanism */
-        decrease_ss_threshold_and_window_size(send_session);
         fprintf(stderr, "One packet has been lost at peer with ip %s, port: "
                         "%d\n",
-                send_session->ip, send_session->port);
+                send_session->ip, input->incoming_socket);
+        delete_timer_of_ackNo(&send_session->sent_packet_timers, ip_port->ip,
+                              ip_port->port, send_session->last_packet_acked);
+        decrease_ss_threshold_and_window_size(send_session);
+        send_session->dup_ack = 0;
+        repeat_udp_packet_reliable(send_session, input, input->incoming_socket);
     }
     /*
       timeout & fast retransmit will both work. Note once fast transmit occurs,
       window size is set to 1!
      */
-    repeat_udp_packet_reliable(send_session, input, input->incoming_socket);
 
     return;
 }
@@ -589,11 +609,15 @@ input, send_data_sessions *send_data_session){
  * @param send_session
  */
 void decrease_ss_threshold_and_window_size(udp_session *send_session){
+    uint8_t prev_window_size = send_session->send_window_size;
     uint8_t half_thres = send_session->ss_threshold / 2;
     send_session->ss_threshold = half_thres > 2?half_thres:2;
     send_session->send_window_size = 1;
+    send_session->last_packet_sent = send_session->last_packet_acked;
     send_session->conn_state = SLOW_START;
 
+    fprintf(stdout, "Prev window size is %d, current window size is %d\n",
+            prev_window_size, send_session->send_window_size);
     return;
 }
 
