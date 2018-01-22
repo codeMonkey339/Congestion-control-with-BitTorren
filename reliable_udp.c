@@ -172,6 +172,7 @@ void init_send_session(udp_session *send_session,
                        ip_port_t *ip_port, size_t chunk_idx,
                        handler_input *input) {
     send_session->last_packet_sent = 0;
+    send_session->largest_packet_sent = 0;
     send_session->last_packet_acked = 0;
     send_session->peer_id = input->peer_id;
     send_session->dup_ack = 0;
@@ -218,7 +219,7 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
 
         while((send_session->last_packet_sent -
                 send_session->last_packet_acked) < send_session->send_window_size){
-            //todo: keep a variabled called acked_bytes here
+            //todo: keep a variable called acked_bytes here
             full_body_size = UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN;
             left_bytes = CHUNK_LEN - send_session->sent_bytes;
             bytes_to_send = left_bytes>full_body_size?full_body_size:left_bytes;
@@ -234,7 +235,13 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
                     read_packet_size, packet_header.seqNo);
             //todo: these details could be hidden
             send_session->last_packet_sent++;
-            send_session->sent_bytes += read_packet_size;
+            /* only when sending a new packet, the sent byte size will incr */
+            if (send_session->last_packet_sent >
+                    send_session->largest_packet_sent){
+                send_session->largest_packet_sent =
+                        send_session->last_packet_sent;
+                send_session->sent_bytes += read_packet_size;
+            }
             add_timer(&send_session->sent_packet_timers, ip_port->ip, ip_port->port,
                       &packet_header, filebuf, read_packet_size);
             time_t cur_time = time(0);
@@ -287,6 +294,7 @@ int cumulative_ack(udp_recv_session *session, handler_input *input,
             break;
         }
     }
+    /* find the last cumulatively acked packet */
     if (index > 0) {
         session->last_packet_acked += index;
         session->last_acceptable_frame += index;
@@ -310,8 +318,10 @@ void copy_recv_packet_2_buf(udp_recv_session *recv_session, handler_input
 *input){
     size_t seqNo = input->header->seqNo;
     size_t full_packet_len = UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN;
+    int copied = recv_session->recved_flags[seqNo -
+            recv_session->last_packet_acked -1];
     if ((recv_session->last_packet_acked < seqNo) &&
-            (recv_session->last_acceptable_frame >= seqNo)){
+            (recv_session->last_acceptable_frame >= seqNo) && copied == 0){
         memcpy(recv_session->data + full_packet_len * (seqNo - 1),
                input->body_buf,
                input->header->packLen);

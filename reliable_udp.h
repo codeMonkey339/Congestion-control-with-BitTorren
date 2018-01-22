@@ -44,8 +44,9 @@ typedef struct udp_sender_session {
   should there be a window to record the packet # that has been received?
  */
 typedef struct udp_session {
-    short last_packet_sent;
-    short last_packet_acked;
+    int last_packet_sent;
+    int last_packet_acked;
+    int largest_packet_sent;
     short peer_id;
     /* # of duplicate acknowledgements */
     short dup_ack;
