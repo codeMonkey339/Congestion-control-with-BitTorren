@@ -119,8 +119,7 @@ port);
 
 int udp_recv_session_exists(vector *recv_sessions, size_t peer_id);
 
-void process_queued_up_requests(vector *queued_requests, udp_recv_session
-*recv_session, job_t *job);
+void process_queued_up_requests(vector *queued_requests, size_t peer_id, job_t *job);
 
 void free_udp_recv_session(vector *recv_sessions, udp_recv_session *
 recv_session);

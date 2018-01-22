@@ -372,18 +372,17 @@ int udp_recv_session_exists(vector *recv_sessions, size_t peer_id){
  * @param recv_session
  * @param job
  */
-void process_queued_up_requests(vector *queued_requests, udp_recv_session
-*recv_session, job_t *job){
+void process_queued_up_requests(vector *queued_requests, size_t peer_id, job_t *job){
     fprintf(stdout, "after receiving a complete chunk, process next chunk in "
             "line \n");
     char *hash;
-
+    peer_info_t *peer = get_peer_info_from_id(job->peers, peer_id);
     for (size_t i = 0; i < queued_requests->len; i++){
         request_t *r = vec_get(queued_requests, i);
-        if (!strcmp(r->ip, recv_session->ip) && r->port == recv_session->sock){
+        if (!strcmp(r->ip, peer->ip) && r->port == peer->port){
             hash = strtok(r->chunk, " ");
             hash = strtok(NULL, " ");
-            send_get_request(job, hash, recv_session->peer_id);
+            send_get_request(job, hash, peer_id);
             vec_delete(queued_requests, r);
 
             return;
