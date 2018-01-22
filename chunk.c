@@ -176,8 +176,10 @@ char *get_chunk_hash(char *chunk, size_t size){
 		fprintf(stderr, "Failed to allocate memory\n");
 		exit(-1);
 	}
+        fprintf(stdout, "calculating chunk hash for a chunk of size %d\n", size);
 	shahash((uint8_t*)chunk, size, hash);
 	hex2ascii(hash, SHA1_HASH_SIZE, chunk_hash);
+        fprintf(stdout, "the ascii of calculated hash is %s\n", chunk_hash);
 	free(hash);
 	return chunk_hash;
 }

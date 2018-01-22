@@ -12,6 +12,7 @@
 #include "chunk.h"
 #include "packet_handler.h"
 #include "spiffy.h"
+#include <stdio.h>
 
 
 
@@ -112,7 +113,7 @@ void build_udp_recv_session(udp_recv_session *recv_session, int peer_id, char
     peer_info_t *peer_info = get_peer_info_from_id(peers, peer_id);
     recv_session->last_packet_acked = 0;
     recv_session->last_acceptable_frame = recv_session->last_packet_acked +
-                                          SS_THRESHOLD;
+      DEFAULT_WINDOW_SIZE;
     recv_session->peer_id = peer_id;
     recv_session->sock = peer_info->port;
     strcpy(recv_session->ip, peer_info->ip);
@@ -218,7 +219,7 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
         memset(&packet_header, 0, sizeof(packet_h));
         seek_to_packet_pos(send_session->f, send_session->chunk_index,
                            send_session->last_packet_sent);
-
+        fprintf(stdout, "seek file to offset of index %d with chunk_idx %d\n", send_session->last_packet_sent, send_session->chunk_index);
         while((send_session->last_packet_sent -
                 send_session->last_packet_acked) < send_session->send_window_size){
             //todo: keep a variable called acked_bytes here
@@ -338,6 +339,8 @@ void copy_recv_packet_2_buf(udp_recv_session *recv_session, handler_input
         recv_session->buf_size += input->header->packLen;
         recv_session->recved_flags[seqNo - recv_session->last_packet_acked -1]
                 = 1;
+        fprintf(stdout, "Copied a packet with seqNo %d of size %d to buffer\n",
+                input->header->seqNo, input->header->packLen);
     }
 
     return;
@@ -545,6 +548,7 @@ void repeat_udp_packet_reliable(udp_session *send_session, handler_input
     memset(&packet_header, 0, sizeof(packet_h));
     seek_to_packet_pos(send_session->f, send_session->chunk_index,
                        send_session->last_packet_acked);
+    fprintf(stdout, "seek file to offset of index %d with chunk_idx %d\n", send_session->last_packet_acked, send_session->chunk_index);
     /* only re-send the lost packet */
     for (size_t i = send_session->last_packet_acked + 1; meet_resend_cond
             (send_session, i); i++){
