@@ -205,6 +205,8 @@ void init_send_session(udp_session *send_session,
  */
 void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
                               int mysock) {
+    fprintf(stdout, "Entering send_udp_packet_reliable, # of sent bytes is "
+            "%d\n", send_session->sent_bytes);
     if ((send_session->last_packet_sent - send_session->last_packet_acked) <
         send_session->send_window_size) {
         char filebuf[UDP_MAX_PACK_SIZE];
@@ -231,8 +233,6 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
             packet = packet_message_builder(&packet_header, filebuf,
                                             read_packet_size);
             send_packet(ip_port->ip, ip_port->port, packet, mysock);
-            fprintf(stdout, "Sent a packet of size %u with packet number %d\n",
-                    read_packet_size, packet_header.seqNo);
             //todo: these details could be hidden
             send_session->last_packet_sent++;
             /* only when sending a new packet, the sent byte size will incr */
@@ -242,6 +242,11 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
                         send_session->last_packet_sent;
                 send_session->sent_bytes += read_packet_size;
             }
+            fprintf(stdout, "Current # of sent bytes is: %d\n",
+                    send_session->sent_bytes);
+            fprintf(stdout, "read packet size is %d\n", read_packet_size);
+            fprintf(stdout, "Sent a packet of size %u with packet number %d\n",
+                    read_packet_size, packet_header.seqNo);
             add_timer(&send_session->sent_packet_timers, ip_port->ip, ip_port->port,
                       &packet_header, filebuf, read_packet_size);
             time_t cur_time = time(0);
@@ -254,6 +259,8 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
         fprintf(stdout, "Packets in sending window are all pending "
                 "acknowledgement \n");
     }
+    fprintf(stdout, "Leaving send_udp_packet_reliable, # of sent bytes is "
+            "%d\n", send_session->sent_bytes);
     return;
 }
 
