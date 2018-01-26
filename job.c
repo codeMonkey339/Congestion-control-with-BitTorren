@@ -216,7 +216,8 @@ int get_chunk_to_download_id(char *chunk_hash, vector *chunks_to_download){
  */
 int verify_hash(char *chunk_hash, char *data){
     char *calculated_chunk_hash = get_chunk_hash(data, CHUNK_LEN);
-
+    fprintf(stdout, "calculated hash is %s\n", calculated_chunk_hash);
+    fprintf(stdout, "correct hash is %s\n", chunk_hash);
     if (!strncmp(chunk_hash, calculated_chunk_hash, strlen(calculated_chunk_hash))){
         free(calculated_chunk_hash);
         return 0;

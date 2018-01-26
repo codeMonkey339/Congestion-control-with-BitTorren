@@ -247,13 +247,16 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
             fprintf(stdout, "read packet size is %d\n", read_packet_size);
             fprintf(stdout, "Sent a packet of size %u with packet number %d\n",
                     read_packet_size, packet_header.seqNo);
-            add_timer(&send_session->sent_packet_timers, ip_port->ip, ip_port->port,
-                      &packet_header, filebuf, read_packet_size);
-            time_t cur_time = time(0);
-            size_t sent_packet_array_idx = send_session->last_packet_sent -
-                    send_session->last_packet_acked - 1;
-            send_session->packets_sent_time[sent_packet_array_idx] = cur_time;
             free(packet);
+            if (send_session->last_packet_sent >
+                    send_session->last_packet_acked){
+                add_timer(&send_session->sent_packet_timers, ip_port->ip, ip_port->port,
+                          &packet_header, filebuf, read_packet_size);
+                time_t cur_time = time(0);
+                size_t sent_packet_array_idx = send_session->last_packet_sent -
+                                               send_session->last_packet_acked - 1;
+                send_session->packets_sent_time[sent_packet_array_idx] = cur_time;
+            }
         }
     } else {
         fprintf(stdout, "Packets in sending window are all pending "
