@@ -184,6 +184,7 @@ void process_commandline_get(char *chunkfile, char *outputfile,
                                                     ->chunks_to_download);
     if (strlen(whohas_query) > 0){
         //todo: only need to download partial chunks
+        fprintf(stdout, "starting a new download job\n");
         fprintf(stdout, "disseminating whohas packets to peers \n");
         job_flood_whohas_msg(&config->peer->peer, whohas_query, config->job);
     }else{

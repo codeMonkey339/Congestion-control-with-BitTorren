@@ -484,6 +484,7 @@ void process_data_packet(handler_input *input, job_t *job) {
         }
 
         if (!check_all_chunks_received(job->chunks_to_download)) {
+            fprintf(stdout, "finished the current job \n");
             write_data_outputfile(job, job->outputfile);
             free_udp_recv_session(job->recv_sessions, recv_session);
         } else {
