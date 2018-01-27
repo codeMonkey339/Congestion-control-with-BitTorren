@@ -464,7 +464,6 @@ void process_data_packet(handler_input *input, job_t *job) {
     ack_recv_data_packet(recv_session, job, input);
     fprintf(stdout, "Received a packet from ip: %s and port: %d with packet "
                     "no%d\n",ip_port->ip, ip_port->port, recv_header->seqNo);
-    
     if (input->recv_size < UDP_MAX_PACK_SIZE) {
         fprintf(stdout, "Received a complete chunk from %s:%d\n",
                 ip_port->ip, ip_port->port);
