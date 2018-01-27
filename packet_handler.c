@@ -280,6 +280,8 @@ int send_get_request(job_t *job, char *chunk_hash, size_t peer_id) {
                                               packet_body->body_len);
     send_packet(ip_port->ip, ip_port->port, packet, job->mysock);
     vec_add(job->recv_sessions, recv_session);
+    fprintf(stdout, "sent a new get request to %s:%d for chunk with hash "
+            "%s\n", ip_port->ip, ip_port->port, chunk_hash);
     return 1;
 }
 

@@ -221,7 +221,8 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
                            send_session->last_packet_sent);
         fprintf(stdout, "seek file to offset of index %d with chunk_idx %d\n", send_session->last_packet_sent, send_session->chunk_index);
         while((send_session->last_packet_sent -
-                send_session->last_packet_acked) < send_session->send_window_size){
+                send_session->last_packet_acked) <
+                send_session->send_window_size){
             //todo: keep a variable called acked_bytes here
             full_body_size = UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN;
             left_bytes = CHUNK_LEN - send_session->sent_bytes;
