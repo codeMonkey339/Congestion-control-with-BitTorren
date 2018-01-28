@@ -41,6 +41,8 @@ typedef struct timer{
   /* ip of recipient */
   char ip[IP_STR_LEN];
   /* socket of recipient */
+  int port;
+  /* socket through which to resend the packet */
   int sock;
   /* each timer carries with itself the message to send */
   char *body;
@@ -62,8 +64,8 @@ void vec_free(vector *vec);
 int vec_delete(vector *vec, void *ele);
 void vec_copy2_str(vector *v, char *buf);
 int read_from_sock(int sock, char *buf, int BUFLEN);
-void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf,
-               size_t buf_len);
+void add_timer(vector *timers, char *ip, int port, packet_h *header, char *filebuf,
+               size_t buf_len, int sock);
 void test_vec();
 
 vector *vec_diff(vector *v1, vector *v2);

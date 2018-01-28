@@ -222,7 +222,8 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
         fprintf(stdout, "seek file to offset of index %d with chunk_idx %d\n", send_session->last_packet_sent, send_session->chunk_index);
         while((send_session->last_packet_sent -
                 send_session->last_packet_acked) <
-                send_session->send_window_size){
+                send_session->send_window_size &&
+                send_session->sent_bytes < CHUNK_LEN){
             //todo: keep a variable called acked_bytes here
             full_body_size = UDP_MAX_PACK_SIZE - PACK_HEADER_BASE_LEN;
             left_bytes = CHUNK_LEN - send_session->sent_bytes;
@@ -252,8 +253,9 @@ void send_udp_packet_reliable(udp_session *send_session, ip_port_t *ip_port,
             free(packet);
             if (send_session->last_packet_sent >
                     send_session->last_packet_acked){
-                add_timer(&send_session->sent_packet_timers, ip_port->ip, ip_port->port,
-                          &packet_header, filebuf, read_packet_size);
+                add_timer(&send_session->sent_packet_timers, ip_port->ip,
+                          ip_port->port, &packet_header, filebuf,
+                          read_packet_size, mysock);
                 time_t cur_time = time(0);
                 size_t sent_packet_array_idx = send_session->last_packet_sent -
                                                send_session->last_packet_acked - 1;
@@ -448,8 +450,10 @@ void move_send_window_forward(udp_session *send_session,
                               send_data_sessions *send_data_session,
                               handler_input *input){
     ip_port_t *ip_port = parse_peer_ip_port(&input->from_ip);
-
-    remove_acked_packet_timers(send_session, input->header->ackNo);
+    for (size_t i = send_session->last_packet_acked; i <=
+            input->header->ackNo; i++){
+        remove_acked_packet_timers(send_session, i);
+    }
     send_session->last_packet_acked = input->header->ackNo;
     send_session->dup_ack = 0;
     if (send_session->sent_bytes >= CHUNK_LEN){
@@ -472,12 +476,12 @@ void move_send_window_forward(udp_session *send_session,
  * @param send_session
  */
 void increase_send_window_size(udp_session *send_session){
+    double updated_rtt = update_rtt(send_session);
     if (send_session->conn_state == SLOW_START){
         if (++send_session->send_window_size == send_session->ss_threshold){
             send_session->conn_state = CONG_AVOID;
         }
     }else if (send_session->conn_state == CONG_AVOID){
-        double updated_rtt = update_rtt(send_session);
         double time_diff = time(0) - send_session->last_wind_size_incr_time;
         if (send_session->last_wind_size_incr_time == 0
             || time_diff >= updated_rtt){
@@ -572,8 +576,9 @@ void repeat_udp_packet_reliable(udp_session *send_session, handler_input
             send_session->last_packet_sent = i;
         }
         if (i == (send_session->last_packet_acked + 1)){
-            add_timer(&send_session->sent_packet_timers, ip_port->ip, ip_port->port,
-                      &packet_header, filebuf, read_packet_size);
+            add_timer(&send_session->sent_packet_timers, ip_port->ip,
+                      ip_port->port, &packet_header, filebuf, read_packet_size,
+                      mysock);
         }
         free(packet);
         fprintf(stdout, "Sent a repeating packet of packet number %ud\n", i);

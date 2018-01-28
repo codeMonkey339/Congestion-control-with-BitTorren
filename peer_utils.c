@@ -76,7 +76,7 @@ void remove_peer_by_id(vector *peers, size_t peer_id){
  */
 void remove_peer(vector *peers, timer *timer){
     ip_port_t ip_port;
-    build_ip_port(timer->ip, timer->sock, &ip_port);
+    build_ip_port(timer->ip, timer->port, &ip_port);
 
     for (size_t i = 0; i < peers->len; i++){
         peer_info_t *peer = vec_get(peers, i);

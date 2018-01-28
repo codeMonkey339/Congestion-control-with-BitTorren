@@ -180,17 +180,18 @@ int read_from_sock(int sock, char *buf, int BUFLEN){
  * add a timer to the timer vector
  * @param timers
  * @param ip ip of the message recipient
- * @param sock port # of the message recipient
+ * @param port port # of the message recipient
  * @param header header of the sent packet
  * @param filebuf body of the sent packet
  * @param buf_len the body length of the sent packet
  */
-void add_timer(vector *timers, char *ip, int sock, packet_h *header, char *filebuf,
-               size_t buf_len) {
+void add_timer(vector *timers, char *ip, int port, packet_h *header, char *filebuf,
+               size_t buf_len, int sock) {
     timer *cur_timer = (timer *) Malloc(sizeof(timer));
     cur_timer->start = time(0);
     cur_timer->repeat_times = 0;
     strcpy(cur_timer->ip, ip);
+    cur_timer->port = port;
     cur_timer->sock = sock;
 
     if (header != NULL) {
@@ -220,7 +221,7 @@ void delete_timer_of_ackNo(vector *timers, char *ip, int port, size_t ackNo){
         timer *cur_timer = vec_get(timers, i);
         if (!strcmp(cur_timer->ip, ip) && cur_timer->sock == port &&
                 cur_timer->header->ackNo == ackNo){
-
+            fprintf(stdout, "deleted a timer for packet seqNo %d\n", ackNo);
             if (cur_timer->header != NULL){
                 free(cur_timer->header);
             }

@@ -303,7 +303,7 @@ void peer_run(bt_config_t *config) {
                                    "Currently unused", config);
             }
         }
-        //check_timer(config);
+        check_timer(config);
     }
 
     /* try to avoid double release */

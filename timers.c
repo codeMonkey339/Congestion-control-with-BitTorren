@@ -20,7 +20,7 @@ void remove_timer(vector *timers, timer *t){
 void remove_timer_by_ip(vector *timers, ip_port_t *ip_port){
     for (size_t i = 0; i < timers->len; i++){
         timer *t = vec_get(timers, i);
-        if (strcmp(t->ip, ip_port->ip) == 0 && t->sock == ip_port->port){
+        if (strcmp(t->ip, ip_port->ip) == 0 && t->port == ip_port->port){
             vec_delete(timers, t);
             break;
         }

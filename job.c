@@ -156,8 +156,8 @@ void job_flood_whohas_msg(vector *peers, char *query_msg, job_t *job){
         packet_m *packet = packet_message_builder(&header, query_msg, strlen
                 (query_msg));
         send_packet(peer->ip, peer->port, packet, job->mysock);
-        add_timer(job->who_has_timers, peer->ip, peer->port, &header,
-                  query_msg, strlen(query_msg));
+        add_timer(job->who_has_timers, peer->ip, peer->port, &header, query_msg,
+                  strlen(query_msg), 0);
         free(packet);
     }
 
@@ -312,11 +312,68 @@ request_t *build_request(char *chunk_hash, size_t peer_id, vector *peers){
  * @param config
  */
 void check_timer(bt_config_t *config){
-    check_whohas_timers(config->job);
+    //check_whohas_timers(config->job);
+    check_packet_timers(config);
 
 }
 
+/**
+ * check timers for sent packets
+ * @param config
+ */
+void check_packet_timers(bt_config_t *config){
+    if (config == NULL){
+        return;
+    }
+    vector *send_sessions = config->send_data_session;
+    for (size_t i = 0; i < send_sessions->len; i++){
+        udp_session *session = vec_get(send_sessions, i);
+        if (session != NULL){
+            if (session->sent_packet_timers.len > 0){
+                check_packet_timers_in_session(session);
+            }
+        }
+    }
+    return;
+}
 
+/**
+ * for every session, check out timers of sent packets in it
+ * @param session
+ */
+void check_packet_timers_in_session(udp_session *session){
+    vector *sent_packets = &session->sent_packet_timers;
+    for(size_t i = 0; i < sent_packets->len; i++){
+        timer *cur_timer = vec_get(sent_packets, i), *backup_timer;
+        double time_diff = (time(0) - cur_timer->start) * 1.0;// unit in second
+        if (time_diff >= session->rtt && session->rtt > 1e-3){
+            fprintf(stdout, "a packet addressing to %s:%d with seqNo %d has "
+                    "timed out\n",cur_timer->ip, cur_timer->port,
+                    cur_timer->header->seqNo);
+            packet_m *packet = packet_message_builder(cur_timer->header,
+                                                      cur_timer->body,
+                                                      cur_timer->header->packLen);
+            send_packet(cur_timer->ip, cur_timer->port, packet,
+                        cur_timer->sock);
+            backup_timer = (timer*)Malloc(sizeof(timer));
+            memcpy(backup_timer, cur_timer, sizeof(timer));
+            vec_delete(sent_packets, cur_timer);
+            add_timer(sent_packets, backup_timer->ip, backup_timer->port,
+                      backup_timer->header, backup_timer->body,
+                      backup_timer->header->packLen, backup_timer->sock);
+            free(backup_timer);
+        }else{
+            // the following timers are not timed out
+            break;
+        }
+    }
+    return;
+}
+
+/**
+ * self evident, checking whohas timers
+ * @param job
+ */
 void check_whohas_timers(job_t *job){
     if (job == NULL){
       return;
